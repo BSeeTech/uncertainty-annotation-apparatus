@@ -230,7 +230,7 @@ def _adopt_existing_partial(destination: Path) -> Path:
         print(f"  Resuming existing partial download ({temp.stat().st_size / 1e6:.1f} MB).")
         return temp
     candidates = sorted(
-        Path(tempfile.gettempdir()).glob("*.Task09_Spleen.tar.download"),
+        Path(tempfile.gettempdir()).glob("*Task09_Spleen.tar.download"),
         key=lambda p: p.stat().st_size,
         reverse=True,
     )

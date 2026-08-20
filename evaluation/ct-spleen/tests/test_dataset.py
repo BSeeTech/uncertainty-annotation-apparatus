@@ -14,6 +14,7 @@ sys.path.insert(0, str(MODULE_ROOT))
 
 from install_dataset import (  # noqa: E402
     MSD_SPLEEN_URL,
+    _adopt_existing_partial,
     install_from_archive,
     read_dataset_lock,
 )
@@ -224,6 +225,45 @@ class DatasetProvenanceTest(unittest.TestCase):
                     lock_path,
                     source_url=MSD_SPLEEN_URL,
                 )
+
+    def test_resume_adopts_legacy_randomly_named_partial(self):
+        """Falsification check: resume must find legacy `-Task09_Spleen.tar.download`
+        partials (random temp names from before the deterministic rename), not just
+        the deterministic `.Task09_Spleen.tar.download` name."""
+        with tempfile.TemporaryDirectory() as tmp:
+            # Point gettempdir at an isolated dir for the duration of the check.
+            original = tempfile.gettempdir
+            tempfile.gettempdir = lambda: tmp
+            try:
+                legacy = Path(tmp) / ".tmplegacy-Task09_Spleen.tar.download"
+                legacy.write_bytes(b"Z" * 2048)
+
+                destination = Path(tmp) / "Task09_Spleen.tar"
+                adopted = _adopt_existing_partial(destination)
+
+                self.assertEqual(adopted.name, ".Task09_Spleen.tar.download")
+                self.assertEqual(adopted.stat().st_size, 2048)
+                self.assertFalse(legacy.exists(), "legacy partial should be renamed")
+            finally:
+                tempfile.gettempdir = original
+
+    def test_resume_does_not_adopt_zero_byte_partial(self):
+        """A zero-byte partial is not a resume candidate; download restarts."""
+        with tempfile.TemporaryDirectory() as tmp:
+            original = tempfile.gettempdir
+            tempfile.gettempdir = lambda: tmp
+            try:
+                zero = Path(tmp) / ".tmpempty-Task09_Spleen.tar.download"
+                zero.write_bytes(b"")
+
+                destination = Path(tmp) / "Task09_Spleen.tar"
+                adopted = _adopt_existing_partial(destination)
+
+                self.assertEqual(adopted.name, ".Task09_Spleen.tar.download")
+                self.assertFalse(adopted.exists())
+                self.assertTrue(zero.exists(), "zero-byte partial left untouched")
+            finally:
+                tempfile.gettempdir = original
 
     def test_dataset_lock_rejects_missing_or_malformed_hashes(self):
         with tempfile.TemporaryDirectory() as tmp:
