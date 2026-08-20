@@ -33,22 +33,24 @@ When you first open the platform, you'll see:
 - **Centre**: The image viewport (initially blank until you select a case)
 - **Right panel**: Uncertainty Controls and Submission panel
 
-The reviewer ID (`R01`, `R02`, etc.) tags your annotations. The condition (`C0`–`C5`) determines what AI assistance you receive.
+The reviewer ID (`R01`, `R02`, etc.) tags your annotations. The condition (`C0`–`C2`) determines what AI assistance you receive.
 
 ---
 
 ## Workflow Conditions
 
-The platform supports six conditions that control the level of AI assistance. The condition is fixed per session — switch it in the URL only when starting a new session block.
+The platform supports three implemented conditions that control the level of AI assistance (C0–C2). The condition is fixed per session — switch it in the URL only when starting a new session block.
 
 | Condition | AI Help? | Heatmap? | Worklist Order | You Should… |
 |-----------|----------|----------|---------------|-------------|
 | **C0** | ❌ No AI | ❌ No | By arrival | Draw the segmentation entirely from scratch |
 | **C1** | ✅ AI mask | ❌ No | By arrival | Check the AI mask; edit where wrong, accept where correct |
 | **C2** | ✅ AI mask | ✅ Entropy colours | Highest uncertainty first | Use the heatmap to find problem areas faster |
-| **C3** | ✅ AI mask | ✅ Edge overlay | Highest uncertainty first | Same UI as C2, but the "heatmap" shows edges |
-| **C4** | ✅ AI mask | ❌ No | Highest uncertainty first | Review hardest cases first, no heatmap |
-| **C5** | ✅ AI mask | ✅ Entropy colours | Random order | Use the heatmap; cases appear in random sequence |
+
+> **C3–C5 are gated scaffolding, not usable conditions.** The six-arm `Condition`
+> type, client plan computation, and MONAI Label `saliency_placebo` task exist, but the
+> server rejects inference for C3–C5 (HTTP 400), no test exercises them, and the
+> worklist ordering is not selectable per condition. Sessions should use C0–C2.
 
 > **Tip:** Do not switch conditions in the middle of a session block — the condition is recorded per session and mixing them makes the session logs ambiguous.
 
@@ -79,8 +81,7 @@ The worklist panel (left side) shows all available cases for review:
 
 - **Score**: Mean foreground entropy (0 = fully confident, higher = more uncertain)
 - **Band**: LOW 🟢 / MEDIUM 🟡 / HIGH 🔴 — quick triage
-- **Policy**: Change the ordering (hidden in C0/C1/C5)
-- In C0/C1/C5, cases appear in FIFO or random order (score column hidden)
+- **Policy**: Ordering is fixed to the default (highest uncertainty first) in every implemented condition
 
 Click any row to open that case for review.
 
@@ -88,7 +89,7 @@ Click any row to open that case for review.
 
 ## Reading the Heatmap
 
-When a heatmap is visible (C2, C3, C5), it appears as a semi-transparent colour overlay on the AI segmentation:
+When a heatmap is visible (C2), it appears as a semi-transparent colour overlay on the AI segmentation:
 
 | Colour | Meaning | What to Do |
 |--------|---------|------------|
@@ -99,7 +100,6 @@ When a heatmap is visible (C2, C3, C5), it appears as a semi-transparent colour 
 ### Important Notes
 
 - **Boundary saliency**: High uncertainty often concentrates at organ boundaries. This is normal — boundaries are inherently ambiguous.
-- **C3 (placebo)**: The "heatmap" shows Sobel edge magnitude, not actual uncertainty. It will look similar to C2 but does not convey information about model confidence.
 - **False confidence**: The AI can be confidently wrong (green but incorrect). Always use your expert judgment.
 
 ### Adjusting the Heatmap
@@ -140,7 +140,7 @@ The platform provides standard OHIF segmentation tools:
 └──────────────────────────────┘
 ```
 
-- **Accept** (C1–C5 only) — The AI mask is correct. Submits once.
+- **Accept** (C1/C2 only) — The AI mask is correct. Submits once.
 - **Edit** — You made changes to the mask. Sends the edited mask to the server.
 - **Reject** — The AI mask is unusable (e.g., wrong organ, failed inference).
 
@@ -162,9 +162,9 @@ After submitting, your annotation is stored in the database. If you close the ca
 | `T` | Threshold tool | All conditions |
 | `Ctrl+Z` | Undo | All conditions |
 | `Ctrl+Shift+Z` | Redo | All conditions |
-| `A` | Accept AI mask | C1–C5 |
-| `R` | Reject AI mask | C1–C5 |
-| `H` | Toggle heatmap | C2, C3, C5 |
+| `A` | Accept AI mask | C1/C2 |
+| `R` | Reject AI mask | C1/C2 |
+| `H` | Toggle heatmap | C2 |
 | `→` | Next case | All conditions |
 | `←` | Previous case | All conditions |
 
@@ -175,7 +175,7 @@ After submitting, your annotation is stored in the database. If you close the ca
 ### For Accurate Annotations
 
 1. **Always scroll through all slices** — Don't rely on a single view
-2. **Check the heatmap first** (C2/C5) — Red regions likely need attention
+2. **Check the heatmap first** (C2) — Red regions likely need attention
 3. **Be systematic** — Review in a consistent order (e.g., top-to-bottom)
 4. **Don't over-correct** — If the AI is already correct in green regions, leave it
 5. **Use the right tool** — Brush for large regions, scissors for boundaries

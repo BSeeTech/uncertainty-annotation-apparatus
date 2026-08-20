@@ -178,9 +178,9 @@ echo $ALLOWED_ORIGINS
 http://localhost:3000/uncertainty-review?reviewer=R01&condition=C2
 ```
 
-The reviewer ID must be non-empty. The condition must be one of: C0, C1, C2, C3, C4, C5.
+The reviewer ID must be non-empty. The condition must be one of: C0, C1, C2 (C3–C5 are gated scaffolding — inference is rejected for them).
 
-### Heatmap not visible (C2/C3/C5)
+### Heatmap not visible (C2)
 
 **Cause:** Volume actor not initialised or heatmap loading failed.
 
@@ -194,7 +194,7 @@ The reviewer ID must be non-empty. The condition must be one of: C0, C1, C2, C3,
 
 **Cause:** In C0, Accept is intentionally disabled because there is no AI mask.
 
-**Fix:** Use C1–C5 for AI-assisted conditions, or use Edit/Reject in C0.
+**Fix:** Use C1/C2 for AI-assisted conditions, or use Edit/Reject in C0.
 
 ### Segmentation tools not working
 
@@ -287,19 +287,20 @@ http://localhost:3000/uncertainty-review?reviewer=R01&condition=C2
 curl http://localhost:58050/worklist?reviewer_id=R01
 ```
 
-### C3 heatmap looks the same as C2
+### C3/C5 conditions — expected behaviour
 
-**Expected:** C3 uses Sobel edge magnitude. It is designed to look similar to C2 to control for visual salience. The difference is that C2 shows statistical uncertainty (predictive entropy), while C3 shows edge magnitude.
-
-### C5 worklist shows no scores
-
-**Expected:** C5 uses a randomised worklist order and hides the score column. This isolates the effect of the heatmap from the effect of worklist reordering.
+**Expected:** C3 and C5 are gated scaffolding: the tasks (`saliency_placebo`,
+`mcdropout_seg`) and the six-arm `Condition` type exist, but `POST /infer/{case_id}`
+returns HTTP 400 for them and no test exercises them. They are not runnable
+conditions yet — use C0–C2.
 
 ### "Unknown worklist policy" error
 
 **Cause:** Invalid policy parameter sent to the API.
 
-**Fix:** Valid policies are: `fifo`, `high_first`, `low_first`, `default`. C0/C1 should use `fifo`, C5 should use `default`.
+**Fix:** Valid policies are: `fifo`, `high_first`, `low_first`, `default`. The client
+sends no policy and the server defaults to `high_first`; the other orderings are not
+wired to any condition.
 
 ---
 

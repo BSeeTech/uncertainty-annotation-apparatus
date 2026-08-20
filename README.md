@@ -28,8 +28,8 @@ The platform bridges the gap between basic desktop viewers and expensive enterpr
 | 🔬 **Uncertainty Visualisation** | Per-voxel predictive entropy heatmap overlay with opacity controls |
 | 📋 **Prioritised Worklists** | Case-level uncertainty scoring (mean foreground entropy, band classification) |
 | 📊 **Event Logging** | Buffered event stream via `sendBeacon` for per-condition time/action analysis |
-| 🔄 **Condition System** | URL-driven workflow switching (`?reviewer=R01&condition=C2`) — no code changes |
-| 🧪 **Placebo Control** | C3 condition with Sobel edge-magnitude overlay indistinguishable from entropy heatmap |
+| 🔄 **Condition System** | URL-driven workflow switching (`?reviewer=R01&condition=C2`) — C0–C2 implemented and verified, C3–C5 gated scaffolding |
+| 🧪 **Placebo Control** | `saliency_placebo` inference task (Sobel edge-magnitude) built and registered, but not yet wired into a runnable session |
 | 📦 **Distributed Reviewer Deployment** | Standalone Docker Compose profile for multi-site review workflows |
 | 💾 **Annotation Persistence** | PostgreSQL-backed storage for annotations, segmentations, and event traces |
 
@@ -186,18 +186,36 @@ uncertainty-annotation-apparatus/
 
 ## 🔬 Condition System
 
-The platform supports a **condition-routed review workflow**, switchable entirely via URL parameter — no code changes:
+The platform supports a **condition-routed review workflow**, switchable via URL parameter
+(`?reviewer=R01&condition=C2`). **C0–C2 are implemented and verified**; C3–C5 are gated
+scaffolding toward a factorial extension and **cannot currently run a session** (see below).
 
 | Param | Behaviour | `attachHeatmap` | `importAiMask` | Worklist Policy |
 |-------|-----------|:---:|:---:|:---:|
-| `C0` | Manual annotation from scratch | ❌ | ❌ | FIFO |
-| `C1` | AI pre-annotation, no heatmap | ❌ | ✅ | FIFO |
-| `C2` | AI + entropy heatmap + prioritised | ✅ | ✅ | High-uncertainty first |
-| `C3` | AI + edge-placebo overlay + prioritised | ✅ (Sobel) | ✅ | High-uncertainty first |
-| `C4` | AI + prioritised worklist, no heatmap | ❌ | ✅ | High-uncertainty first |
-| `C5` | AI + entropy heatmap, random order | ✅ | ✅ | Randomised |
+| `C0` | Manual annotation from scratch | ❌ | ❌ | default (high-uncertainty first) |
+| `C1` | AI pre-annotation, no heatmap | ❌ | ✅ | default (high-uncertainty first) |
+| `C2` | AI + entropy heatmap + prioritised | ✅ | ✅ | default (high-uncertainty first) |
+| `C3` | AI + edge-placebo overlay + prioritised | ✅ (Sobel) | ✅ | — not wired |
+| `C4` | AI + prioritised worklist, no heatmap | ❌ | ✅ | — not wired |
+| `C5` | AI + entropy heatmap, random order | ✅ | ✅ | — not wired |
 
-Conditions C0–C5 let you isolate the effect of AI pre-annotation, uncertainty heatmap display, and worklist ordering in a controlled, reproducible way.
+**Implemented and verified: C0, C1, C2.** These three conditions isolate manual
+annotation, AI pre-annotation, and the bundled uncertainty-guidance package (heatmap +
+prioritised worklist). They are enforced at the service layer, not the panel layer, and are
+covered by functional tests (condition gating and reviewer-intent timing).
+
+**C3–C5 are scaffolding, not usable conditions.** The six-arm `Condition` type, the
+client plan computation, and the MONAI Label `saliency_placebo` inference task exist
+(`servers/monai-label/lib/infers/saliency_placebo.py`), but every execution path is fenced
+to C0–C2: the server's `POST /infer/{case_id}` rejects any condition other than C1/C2
+with HTTP 400 ("C3/C4/C5 are not yet connected to this endpoint"), the client
+recomputes condition checks internally rather than consuming the plan output, and no
+test exercises C3–C5. They are the documented head start on a six-arm factorial extension
+of the C0–C2 design, not a usable capability.
+
+**Worklist policy.** The client requests the server's default policy (`high_first`) in every
+condition; the FIFO and randomised orderings exist server-side but are not selectable by
+condition.
 
 ## 🧪 Distributed Reviewer Deployment
 

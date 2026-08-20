@@ -53,22 +53,27 @@ Technical documentation for extending and customizing the Uncertainty Annotation
 
 2. **Adapter pattern** — `CornerstoneAdapter` and `SegmentationExportAdapter` wrap Cornerstone3D's complex viewport API behind narrow interfaces (6 methods each). This isolates the uncertainty extension from Cornerstone3D version changes.
 
-3. **Condition gating at the service layer** — All behavioural differences between C0–C5 are enforced in `UncertaintyService.ts` and `openUncertaintyCase.ts`, not in individual React components. This prevents condition leaks.
+3. **Condition gating at the service layer** — All behavioural differences between C0–C2 are enforced in `UncertaintyService.ts` and `openUncertaintyCase.ts`, not in individual React components. This prevents condition leaks.
 
 4. **Share the same checkpoint** — C1 (deterministic) and C2 (MC Dropout) use the same pretrained model. C3 (saliency placebo) also uses the same model but replaces entropy with Sobel edge magnitude.
 
 ## Condition System
 
-The platform routes behaviour through six URL-driven conditions that isolate the effects of AI pre-annotation, uncertainty heatmap display, and worklist ordering:
+The platform routes behaviour through URL-driven conditions. **C0–C2 are implemented
+and verified; C3–C5 are gated scaffolding** — the six-arm `Condition` type, the plan
+computation, and the MONAI Label tasks below exist in code, but `POST /infer/{case_id}`
+returns HTTP 400 for any condition other than C1/C2, and no test exercises C3–C5.
+Worklist ordering is likewise not selectable per condition: the client always requests
+the server's default (`high_first`).
 
-| ID | Name | `runInference` | `importAiMask` | `attachHeatmap` | Worklist Policy | MONAI Task |
+| ID | Name | `runInference` | `importAiMask` | `attachHeatmap` | MONAI Task | Runnable? |
 |----|------|:---:|:---:|:---:|:---:|:---:|
-| C0 | Manual | ❌ | ❌ | ❌ | FIFO | — |
-| C1 | AI-only | ✅ | ✅ | ❌ | FIFO | `segmentation` |
-| C2 | Full uncertainty | ✅ | ✅ | ✅ (entropy) | High-first | `mcdropout_seg` |
-| C3 | Placebo saliency | ✅ | ✅ | ✅ (Sobel) | High-first | `saliency_placebo` |
-| C4 | Worklist-only | ✅ | ✅ | ❌ | High-first | `segmentation` |
-| C5 | Heatmap-only | ✅ | ✅ | ✅ (entropy) | Random | `mcdropout_seg` |
+| C0 | Manual | ❌ | ❌ | ❌ | — | ✅ |
+| C1 | AI-only | ✅ | ✅ | ❌ | `segmentation` | ✅ |
+| C2 | Full uncertainty | ✅ | ✅ | ✅ (entropy) | `mcdropout_seg` | ✅ |
+| C3 | Placebo saliency | ✅ | ✅ | ✅ (Sobel) | `saliency_placebo` | ⚠️ scaffolding |
+| C4 | Worklist-only | ✅ | ✅ | ❌ | `segmentation` | ⚠️ scaffolding |
+| C5 | Heatmap-only | ✅ | ✅ | ✅ (entropy) | `mcdropout_seg` | ⚠️ scaffolding |
 
 ### Adding a New Condition
 
@@ -130,6 +135,10 @@ Tasks are registered in `servers/monai-label/main.py` and follow the MONAI Label
 
 #### Saliency Placebo Task (C3)
 `lib/infers/saliency_placebo.py` — single forward pass, then computes Sobel edge magnitude of the hard segmentation (Gaussian-blurred, normalised to entropy range [0, 4.5]). Returns the same .zip bundle format as MC Dropout, but the `uncertainty.nii.gz` file contains edges instead of entropy.
+
+> All three tasks are implemented and registered. Only the C1 (`segmentation`) and
+> C2 (`mcdropout_seg`) paths are reachable from `POST /infer/{case_id}`; C3–C5
+> sessions are fenced off (HTTP 400) until the scaffolding is wired up.
 
 ## Client-Side Development
 

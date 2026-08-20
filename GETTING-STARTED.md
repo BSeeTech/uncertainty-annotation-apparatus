@@ -51,9 +51,15 @@ http://localhost:3000/uncertainty-review?reviewer=R01&condition=C2
 | **C0 — Manual** | `?reviewer=R01&condition=C0` | Blank viewport — draw from scratch |
 | **C1 — AI-only** | `?reviewer=R01&condition=C1` | AI mask loaded, no heatmap |
 | **C2 — Full uncertainty** | `?reviewer=R01&condition=C2` | AI mask + entropy heatmap + prioritised worklist |
-| **C3 — Placebo** | `?reviewer=R01&condition=C3` | AI mask + Sobel edge overlay (same UI as C2) |
-| **C4 — Worklist only** | `?reviewer=R01&condition=C4` | AI mask + prioritised worklist, no heatmap |
-| **C5 — Heatmap only** | `?reviewer=R01&condition=C5` | AI mask + entropy heatmap, random worklist order |
+| **C3 — Placebo** ⚠️ | `?reviewer=R01&condition=C3` | *Scaffolding only — cannot run a session yet* |
+| **C4 — Worklist only** ⚠️ | `?reviewer=R01&condition=C4` | *Scaffolding only — cannot run a session yet* |
+| **C5 — Heatmap only** ⚠️ | `?reviewer=R01&condition=C5` | *Scaffolding only — cannot run a session yet* |
+
+> **C0–C2 are implemented and verified.** C3–C5 (placebo saliency, worklist-only,
+> heatmap-only) are gated scaffolding toward a six-arm factorial extension: the
+> `Condition` type, client plan computation, and MONAI Label `saliency_placebo` task
+> exist, but the server rejects inference for C3–C5 with HTTP 400 and no test
+> exercises them. Use C0–C2 for sessions.
 
 ---
 
@@ -80,7 +86,7 @@ http://localhost:3000/uncertainty-review?reviewer=R01&condition=C2
 
 ### 4. Submit Your Decision
 Use the **Submission** panel to:
-- **Accept** — AI mask is correct as-is (C1/C2/C3/C4/C5 only)
+- **Accept** — AI mask is correct as-is (C1/C2 only — C3–C5 not runnable yet)
 - **Edit** — You made changes to the AI mask
 - **Reject** — AI mask is unusable; escalate for expert review
 

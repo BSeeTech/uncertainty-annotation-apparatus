@@ -86,10 +86,13 @@ Returns scored worklist entries for the reviewer.
 **Policy behaviour:**
 | Policy | Order | Used In |
 |--------|-------|---------|
-| `fifo` | Arrival order (FIFO) | C0, C1 |
-| `high_first` | Highest uncertainty first | C2, C3, C4 |
+| `fifo` | Arrival order (FIFO) | — (not selectable by the client) |
+| `high_first` | Highest uncertainty first | default — used in every implemented condition (C0/C1/C2) |
 | `low_first` | Lowest uncertainty first | — |
-| `default` | Randomised order | C5 |
+| `default` | Randomised order | — (not selectable by the client) |
+
+The client requests the default policy (`high_first`) in every condition; the other
+orderings exist server-side but are not wired to any condition.
 
 ### Inference
 
@@ -105,11 +108,18 @@ Run AI inference for a case. Routes to the correct MONAI Label task based on con
 ```
 
 **Condition-to-task mapping:**
-| Condition | MONAI Label Task | Output |
-|-----------|-----------------|--------|
-| `C1`, `C4` | `segmentation` | Single-pass UNet, no uncertainty |
-| `C2`, `C5` | `mcdropout_seg` | MC Dropout (T=16), entropy sidecar |
-| `C3` | `saliency_placebo` | Single-pass UNet + Sobel edge magnitude |
+| Condition | MONAI Label Task | Output | Runnable? |
+|-----------|-----------------|--------|-----------|
+| `C1` | `segmentation` | Single-pass UNet, no uncertainty | ✅ |
+| `C2` | `mcdropout_seg` | MC Dropout (T=16), entropy sidecar | ✅ |
+| `C3` | `saliency_placebo` | Single-pass UNet + Sobel edge magnitude | ⚠️ scaffolding — endpoint rejects with 400 |
+| `C4` | `segmentation` | Single-pass UNet, no uncertainty | ⚠️ scaffolding — endpoint rejects with 400 |
+| `C5` | `mcdropout_seg` | MC Dropout (T=16), entropy sidecar | ⚠️ scaffolding — endpoint rejects with 400 |
+
+The task mapping above is implemented in code, but `POST /infer/{case_id}` currently
+accepts only `C1` and `C2`; any other condition returns HTTP 400 ("C3/C4/C5 are not
+yet connected to this endpoint"). C3–C5 are gated scaffolding for a future factorial
+extension and cannot run a session.
 
 **Response:**
 ```json
@@ -278,3 +288,10 @@ const runInference = args.condition !== 'C0';
 const importAiSegmentation = args.condition !== 'C0';
 const attachHeatmap = args.condition === 'C2' || args.condition === 'C3' || args.condition === 'C5';
 ```
+
+> **Runnable scope.** The mappings above are implemented in code (the six-arm
+> `Condition` type, the server's condition-to-task map, and `buildOpenPlan`), but
+> only C0–C2 are reachable: `POST /infer/{case_id}` returns HTTP 400 for C3–C5, and
+> the client's `openCase`/`setHeatmapVisible` recompute condition checks internally
+> rather than consuming the plan output. C3–C5 are gated scaffolding, not usable
+> conditions; no test exercises them.
