@@ -95,7 +95,7 @@ See [DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md) for a deeper walkthrough of each se
 
 ```bash
 # Clone the repository
-git clone https://github.com/bseetech/uncertainty-annotation-apparatus.git
+git clone https://github.com/BSeeTech/uncertainty-annotation-apparatus.git
 cd medical-imaging-platform
 
 # Copy environment configuration
@@ -290,4 +290,4 @@ This project is licensed under the MIT License — see the [LICENSE](LICENSE) fi
 
 ## 📬 Contact
 
-- 🐛 Issues: [GitHub Issues](https://github.com/bseetech/uncertainty-annotation-apparatus/issues)
+- 🐛 Issues: [GitHub Issues](https://github.com/BSeeTech/uncertainty-annotation-apparatus/issues)

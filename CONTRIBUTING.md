@@ -74,7 +74,7 @@ git checkout -b feature/my-contribution
 4. **OHIF viewer improvements** — Better heatmap rendering, additional panels, keyboard shortcuts
 5. **Analysis scripts** — New statistical analyses for the evaluation data
 6. **Documentation** — Bug fixes, tutorials, translation
-7. **Bug fixes** — See the [issue tracker](https://github.com/bseetech/uncertainty-annotation-apparatus/issues)
+7. **Bug fixes** — See the [issue tracker](https://github.com/BSeeTech/uncertainty-annotation-apparatus/issues)
 
 ### What We Cannot Accept
 
