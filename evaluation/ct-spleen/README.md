@@ -38,10 +38,19 @@ with the included installer:
 python evaluation/ct-spleen/install_dataset.py
 ```
 
+**How long does it take?** The official archive is **~1.5 GB**. On a typical
+broadband connection expect **5–30 minutes**; on a slow link it can take much
+longer. The installer prints a live progress line (downloaded MB, percent,
+speed, ETA), so you can tell it is still working.
+
+**Interrupted? Just re-run the same command.** The installer resumes from the
+partial download instead of starting over.
+
 This downloads the official MSD Task09 Spleen archive and verifies it against
-`dataset.lock.json` (SHA-256 of the archive and of every extracted file). The
-installer creates the `data/` layout used by the evaluation pipeline and
-prints the exact commands for building the `data-local/` studies layout below.
+`dataset.lock.json` (SHA-256 of the archive and of every extracted file — a
+mismatch aborts the install). The installer creates the `data/` layout used by
+the evaluation pipeline; the next section shows how to build the `data-local/`
+studies layout for MONAI Label.
 
 > **License note:** the dataset is the Medical Segmentation Decathlon
 > Task09 Spleen ("MSD Task09 Spleen"). Downloading and using it requires
@@ -62,7 +71,7 @@ Two data directories are produced from `install_dataset.py`:
 After running `install_dataset.py`, create the flattened studies directory for MONAI Label:
 
 ```powershell
-cd C:\medical-imaging-platform
+# From the repository root (the folder you cloned into):
 mkdir -p evaluation/ct-spleen/data-local/labels/final
 
 # Copy training images (patient001-003)
@@ -103,5 +112,14 @@ The `docker-compose.yml` binds `./evaluation/ct-spleen/data-local` to `/workspac
 MONAI Label auto-discovers the `.nii.gz` files via `LocalDatastore` — no DICOM conversion or Orthanc
 dependency required.
 
+**After adding or changing files under `data-local/`, restart the container so
+the datastore rescans the directory:**
+
+```bash
+docker compose restart monai-label
+```
+
 > **Note:** NIfTI files cannot be uploaded to Orthanc. Orthanc only accepts DICOM. If you need images
-> in Orthanc, convert NIfTI → DICOM first using a tool like `plastimatch convert` or `itkimage2segimage`.
+> in Orthanc (e.g. to browse them in the OHIF viewer at `localhost:3000`), convert NIfTI → DICOM
+> first using a tool like `plastimatch convert` or `itkimage2segimage`, then upload via the Orthanc
+> UI at `http://localhost:8042` and run `curl -X POST http://localhost:58050/cases/sync`.

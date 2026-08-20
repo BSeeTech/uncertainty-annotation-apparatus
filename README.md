@@ -168,7 +168,8 @@ uncertainty-annotation-apparatus/
 
 > **Note on evaluation data:** the MSD Task09 Spleen volumes are not bundled
 > with the repository. Run `python evaluation/ct-spleen/install_dataset.py`
-> from the repo root to download and verify them (see
+> from the repo root to download and verify them (~1.5 GB, with live progress
+> and automatic resume — see
 > [evaluation/ct-spleen/README.md](evaluation/ct-spleen/README.md#getting-the-dataset)).
 
 ## 📚 Documentation
