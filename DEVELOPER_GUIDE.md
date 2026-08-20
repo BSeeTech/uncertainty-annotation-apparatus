@@ -1,6 +1,6 @@
 # Developer Guide
 
-Technical documentation for extending and customizing the Medical Imaging Platform.
+Technical documentation for extending and customizing the Uncertainty Annotation Apparatus (UAA).
 
 ## Table of Contents
 

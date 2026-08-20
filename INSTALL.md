@@ -1,6 +1,6 @@
 # Installation Guide
 
-Complete installation instructions for the Medical Imaging Platform.
+Complete installation instructions for the Uncertainty Annotation Apparatus (UAA).
 
 ## Table of Contents
 

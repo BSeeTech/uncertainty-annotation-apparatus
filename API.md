@@ -1,6 +1,6 @@
 # API Reference
 
-Complete documentation for all REST API endpoints across the Medical Imaging Platform services.
+Complete documentation for all REST API endpoints across the Uncertainty Annotation Apparatus (UAA) services.
 
 ## Table of Contents
 

@@ -1,6 +1,6 @@
-# Contributing to Medical Imaging Platform
+# Contributing to Uncertainty Annotation Apparatus (UAA)
 
-Thank you for your interest in contributing to the Medical Imaging Platform! This document provides guidelines and instructions for contributing.
+Thank you for your interest in contributing to the Uncertainty Annotation Apparatus (UAA)! This document provides guidelines and instructions for contributing.
 
 ## Table of Contents
 

@@ -1,5 +1,5 @@
 # MONAI Label Demonstration Guide
-## Medical Imaging Platform (MIP)
+## Uncertainty Annotation Apparatus (UAA)
 
 ---
 
@@ -288,7 +288,7 @@ monai-label:
        │              DICOMweb            REST API
        │                   │                   │
        └───────────────────┴───────────────────┘
-                    Your MIP Platform
+                    Your UAA Platform
 ```
 
 ### Live Demo (10-15 min)
@@ -406,4 +406,4 @@ monailabel start_server --app monaibundle --studies /data --conf models swin_une
 
 ---
 
-*Generated for the Medical Imaging Platform - MONAI Label Integration Demo*
+*Generated for the Uncertainty Annotation Apparatus (UAA) - MONAI Label Integration Demo*

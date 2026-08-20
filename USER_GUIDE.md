@@ -1,6 +1,6 @@
 # User Guide
 
-A comprehensive guide for using the Medical Imaging Platform.
+A comprehensive guide for using the Uncertainty Annotation Apparatus (UAA).
 
 ## Table of Contents
 

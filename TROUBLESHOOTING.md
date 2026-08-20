@@ -1,6 +1,6 @@
 # Troubleshooting Guide
 
-Common issues and solutions for the Medical Imaging Platform.
+Common issues and solutions for the Uncertainty Annotation Apparatus (UAA).
 
 ## Table of Contents
 
