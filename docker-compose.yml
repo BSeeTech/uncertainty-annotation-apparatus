@@ -298,8 +298,8 @@ services:
     environment:
       APP_CONFIG: /usr/share/nginx/html/app-config/reviewer-config.js
       PROXY_TARGET_UNCATEGORIZED: http://reviewer-uncertainty:58050
-      REVIEWER_ID: ${REVIEWER_ID}
-      CONDITION: ${CONDITION}
+      REVIEWER_ID: ${REVIEWER_ID:-}
+      CONDITION: ${CONDITION:-}
     volumes:
       - type: bind
         source: ./ohif-viewer/platform/app/public/config/reviewer-config.js

@@ -6,7 +6,9 @@
 // disable live PACS connections.
 //
 // Environment variables REVIEWER_ID and CONDITION are set in the Docker
-// Compose profile and can be read at runtime.
+// Compose profile. The uncertainty-review mode reads the reviewer and
+// condition from the session URL (?reviewer=...&condition=...); the
+// container environment is not consumed at runtime.
 //
 window.reviewerConfig = {
   // ---- Router ----

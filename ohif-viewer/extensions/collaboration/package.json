@@ -18,7 +18,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/your-org/medical-imaging-platform"
+    "url": "https://github.com/BSeeTech/uncertainty-annotation-apparatus"
   },
   "peerDependencies": {
     "@ohif/core": "^3.7.0",

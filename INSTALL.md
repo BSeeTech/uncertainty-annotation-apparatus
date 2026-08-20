@@ -54,7 +54,7 @@ Complete installation instructions for the Medical Imaging Platform.
 ```bash
 # 1. Clone the repository
 git clone https://github.com/BSeeTech/uncertainty-annotation-apparatus.git
-cd medical-imaging-platform
+cd uncertainty-annotation-apparatus
 
 # 2. Configure environment
 cp .env.example .env

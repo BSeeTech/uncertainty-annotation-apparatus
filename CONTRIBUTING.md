@@ -46,8 +46,8 @@ We are committed to providing a welcoming and inclusive environment for all cont
 
 ```bash
 # Fork and clone
-git clone https://github.com/YOUR_USERNAME/medical-imaging-platform.git
-cd medical-imaging-platform
+git clone https://github.com/YOUR_USERNAME/uncertainty-annotation-apparatus.git
+cd uncertainty-annotation-apparatus
 
 # Set up environment
 cp .env.example .env

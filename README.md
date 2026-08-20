@@ -96,7 +96,7 @@ See [DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md) for a deeper walkthrough of each se
 ```bash
 # Clone the repository
 git clone https://github.com/BSeeTech/uncertainty-annotation-apparatus.git
-cd medical-imaging-platform
+cd uncertainty-annotation-apparatus
 
 # Copy environment configuration
 cp .env.example .env
@@ -132,7 +132,7 @@ The `condition` parameter switches between workflow conditions without code chan
 ## 📁 Project Structure
 
 ```
-medical-imaging-platform/
+uncertainty-annotation-apparatus/
 ├── docker-compose.yml              # Container orchestration (incl. reviewer profile)
 ├── .env                            # Environment configuration
 ├── servers/
