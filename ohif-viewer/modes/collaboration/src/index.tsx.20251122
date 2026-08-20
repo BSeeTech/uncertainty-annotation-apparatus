@@ -1,0 +1,120 @@
+import { hotkeys } from '@ohif/core';
+import { id } from '../package.json';
+
+// 1. Define the Extension ID explicitly
+const collaborationExtensionId = 'collaboration';
+
+// 2. Define standard OHIF layout definitions
+const ohif = {
+  layout: '@ohif/extension-default.layoutTemplateModule.viewerLayout',
+  sopClassHandler: '@ohif/extension-default.sopClassHandlerModule.stack',
+  hangingProtocol: '@ohif/extension-default.hangingProtocolModule.default',
+};
+
+function modeFactory({ modeConfiguration }) {
+  return {
+    id,
+    routeName: 'collaboration',
+    displayName: 'Collaboration',
+
+    /**
+     * Lifecycle Hooks
+     */
+    onModeEnter: ({ servicesManager, extensionManager }) => {
+      const { panelService } = servicesManager.services;
+      
+      // Add the collaboration panel
+      panelService.addPanel({
+        id: 'collaboration.panelModule.collaboration',
+        iconName: 'tab-linear',
+        iconLabel: 'Collaboration',
+        label: 'Collaboration',
+        isDisabled: false,
+      });
+    },
+
+    /**
+     * Mode Validation - FIXED
+     */
+    isValidMode: ({ modalities }) => {
+      // 1. Safety: Handle undefined/null
+      if (!modalities) {
+        return { valid: true, description: 'No modalities found, defaulting to valid.' };
+      }
+
+      // 2. Safety: Convert String to Array if needed (The fix for your error)
+      const currentModalities = Array.isArray(modalities) 
+        ? modalities 
+        : [modalities];
+
+      // 3. Define valid types
+      const validModalities = [
+        'CR', 'DX', 'CT', 'MR', 'NM', 'US', 'OT', 'DOC',
+        'MG', 'RG', 'RF', 'XA', 'ES', 'PT', 'SR', 'SC',
+      ];
+
+      // 4. Run the check safely
+      const isValid = currentModalities.some((m) => 
+        typeof m === 'string' && validModalities.includes(m)
+      );
+
+      return {
+        valid: isValid,
+        description: 'The mode does not support this modality or the study has no series.',
+      };
+    },
+
+    /**
+     * Mode Routes
+     */
+    routes: [
+      {
+        path: 'collaboration',
+        layoutTemplate: ({ location, servicesManager }) => {
+          return {
+            id: ohif.layout,
+            props: {
+              leftPanels: ['@ohif/extension-default.panelModule.seriesList'],
+              rightPanels: ['collaboration.panelModule.collaboration'],
+              viewports: [
+                {
+                  namespace: '@ohif/extension-cornerstone.viewportModule.cornerstone',
+                  displaySetsToDisplay: [
+                    { id: 'defaultDisplaySetId' }
+                  ],
+                },
+              ],
+            },
+          };
+        },
+      },
+    ],
+
+    /**
+     * List of Extension Dependencies
+     */
+    extensionDependencies: [
+      '@ohif/extension-default',
+      '@ohif/extension-cornerstone',
+      collaborationExtensionId,
+    ],
+
+    /**
+     * Required Data Handlers
+     */
+    sopClassHandlers: [ohif.sopClassHandler],
+    hangingProtocols: [ohif.hangingProtocol],
+  };
+}
+
+const mode = {
+  id,
+  modeFactory,
+  extensionDependencies: [
+    '@ohif/extension-default',
+    '@ohif/extension-cornerstone',
+    collaborationExtensionId,
+  ],
+};
+
+export default mode;

@@ -1,0 +1,127 @@
+# Dependencies
+node_modules/
+.yarn/
+.pnp.*
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Environment files
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Testing
+coverage/
+.nyc_output/
+.pytest_cache/
+.hypothesis/
+
+# Docker
+.docker/
+
+# OS files
+Thumbs.db
+ehthumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+tmp/
+
+# Python (MONAI Label)
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+venv/
+.venv/
+
+# Secrets and credentials
+*.pem
+*.key
+*.crt
+secrets/
+
+# Database
+*.sql.bak
+*.dump
+
+# DICOM data (may be large)
+*.dcm
+*.dicom
+dicom-data/
+
+# Model weights — provision locally, see INSTALL.md
+models/
+servers/monai-label/model/*.pt
+
+# Evaluation datasets — download via evaluation/ct-spleen/install_dataset.py
+evaluation/ct-spleen/data-local/
+evaluation/ct-spleen/data/
+evaluation/ct-spleen/results/phase6/
+
+# Generated documentation artifacts (source kept as .tex/.md)
+user-guide.pdf
+
+# IDE-specific
+*.iml
+.project
+.classpath
+.settings/
+
+# Package manager locks (optional - some prefer to commit these)
+# package-lock.json
+# yarn.lock
+
+# Documentation build
+site/
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+
+# Tool caches / local agent state
+.mimocode/
+.playwright-mcp/
+.reasonix/
+.understand-anything/
+
+# Local-only deliverables (not part of the public repository)
+defense_questions_alternatives.md
+knowledge-graph-dashboard.html
+snapshots/
+# Defense/citation dashboard files (kept local)
+thesis0802c_defense_citation_dashboard.html
+thesis0802c1_defense_citation_dashboard.html
+
+# Synthetic study archive (regenerable via scripts/generate-research-data.py / generate-reviewer-data.py)
+evaluation/ct-spleen/participants*.csv
+evaluation/ct-spleen/research-*.sql
+evaluation/ct-spleen/research-flat*.csv
+evaluation/ct-spleen/study_attempts*.csv
+evaluation/ct-spleen/study_sessions*.csv
+evaluation/ct-spleen/nasa_tlx*.csv
+evaluation/ct-spleen/segmentation_metrics*.csv
+evaluation/ct-spleen/generated-reviewer-data*.sql
+evaluation/ct-spleen/synthetic/

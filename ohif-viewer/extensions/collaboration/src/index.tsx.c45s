@@ -1,0 +1,85 @@
+/**
+ * index.tsx - Collaboration Extension
+ */
+
+import React from 'react';
+import CollaborationService from './services/CollaborationService';
+
+const extension = {
+  id: '@ohif/extension-collaboration',
+  version: '0.1.0',
+  
+  // Register service
+  preRegistration: ({ servicesManager }) => {
+    try {
+      servicesManager.registerService(CollaborationService.REGISTRATION);
+      console.log('✅ Collaboration service registered');
+    } catch (error) {
+      console.error('❌ Failed to register collaboration service:', error);
+    }
+  },
+  
+  // Register panel - with proper React component
+  getPanelModule: ({ servicesManager, commandsManager }) => {
+    console.log('📦 getPanelModule called');
+  
+    // Proper functional component
+    function CollaborationPanelPlaceholder(props) {
+      console.log('🎨 CollaborationPanel rendering with props:', props);
+    
+      return React.createElement('div', {
+        style: {
+          padding: '20px',
+          background: '#1a1a1a',
+          color: 'white',
+          height: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '10px'
+        }
+      }, 
+        React.createElement('h3', { style: { margin: 0 } }, 'Collaboration Panel'),
+        React.createElement('p', { style: { margin: 0 } }, '✅ Panel loaded successfully!'),
+        React.createElement('p', { style: { color: '#888' } }, 
+          'The collaboration extension is working. Panel UI will be implemented next.'
+        )
+      );
+    }
+  
+    // Return array of panels
+    return [
+      {
+        name: 'collaboration',
+        iconName: 'icon-users',
+        iconLabel: 'Collaboration',
+        label: 'Collaboration',
+        component: CollaborationPanelPlaceholder,
+      },
+    ];
+  },
+  
+  // Commands module
+  getCommandsModule: () => {
+    console.log('📦 getCommandsModule called');
+    return {
+      definitions: {},
+      defaultContext: 'DEFAULT',
+    };
+  },
+  
+  // Utility module
+  getUtilityModule: () => {
+    console.log('📦 getUtilityModule called');
+    return [];
+  },
+  
+  // Toolbar module
+  getToolbarModule: () => {
+    console.log('📦 getToolbarModule called');
+    return [];
+  },
+};
+
+console.log('🚀 Collaboration extension loaded');
+
+export default extension;

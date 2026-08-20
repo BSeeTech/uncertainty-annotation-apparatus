@@ -1,0 +1,87 @@
+[
+  {
+    "patient_id": "patient001",
+    "msd_case": "spleen_10",
+    "source_split": "imagesTr",
+    "reference_available": true,
+    "study_uid": "1.2.826.0.1.3680043.8.274.1.1.248825330.63900.8824652402.697",
+    "series_uid": "1.2.826.0.1.3680043.8.274.1.1.784017185.94518.4538589876.211",
+    "modality": "CT"
+  },
+  {
+    "patient_id": "patient002",
+    "msd_case": "spleen_19",
+    "source_split": "imagesTr",
+    "reference_available": true,
+    "study_uid": "1.2.826.0.1.3680043.8.274.1.1.786988705.17387.8717949376.670",
+    "series_uid": "1.2.826.0.1.3680043.8.274.1.1.217746236.48460.8396164103.990",
+    "modality": "CT"
+  },
+  {
+    "patient_id": "patient003",
+    "msd_case": "spleen_29",
+    "source_split": "imagesTr",
+    "reference_available": true,
+    "study_uid": "1.2.826.0.1.3680043.8.274.1.1.440932339.25736.8771857202.211",
+    "series_uid": "1.2.826.0.1.3680043.8.274.1.1.323164088.69886.2011085890.421",
+    "modality": "CT"
+  },
+  {
+    "patient_id": "patient004",
+    "msd_case": "spleen_1",
+    "source_split": "imagesTs",
+    "reference_available": false,
+    "study_uid": "1.2.826.0.1.3680043.8.274.1.1.978964378.20833.5934797847.233",
+    "series_uid": "1.2.826.0.1.3680043.8.274.1.1.435486677.64603.2847829754.141",
+    "modality": "CT"
+  },
+  {
+    "patient_id": "patient005",
+    "msd_case": "spleen_15",
+    "source_split": "imagesTs",
+    "reference_available": false,
+    "study_uid": "1.2.826.0.1.3680043.8.274.1.1.521426503.86857.9032450883.677",
+    "series_uid": "1.2.826.0.1.3680043.8.274.1.1.956292836.56138.4474170934.471",
+    "modality": "CT"
+  },
+  {
+    "patient_id": "DET0000101_avg",
+    "source_split": "imagesDET",
+    "reference_available": false,
+    "study_uid": "1.2.826.0.1.3680043.8.274.1.1.8247060327.75519.4237086139.796",
+    "series_uid": "1.2.826.0.1.3680043.8.274.1.1.1549403409.92949.9928720754.350",
+    "modality": "CT"
+  },
+  {
+    "patient_id": "DET0000201_avg",
+    "source_split": "imagesDET",
+    "reference_available": false,
+    "study_uid": "1.2.826.0.1.3680043.8.274.1.1.8274164626.27981.9346422741.638",
+    "series_uid": "1.2.826.0.1.3680043.8.274.1.1.2202653464.10265.7141311830.759",
+    "modality": "CT"
+  },
+  {
+    "patient_id": "DET0000801_avg",
+    "source_split": "imagesDET",
+    "reference_available": false,
+    "study_uid": "1.2.826.0.1.3680043.8.274.1.1.8040071758.33333.5872423995.676",
+    "series_uid": "1.2.826.0.1.3680043.8.274.1.1.4147500540.47824.2955205109.117",
+    "modality": "CT"
+  },
+  {
+    "patient_id": "DET0001101_avg",
+    "source_split": "imagesDET",
+    "reference_available": false,
+    "study_uid": "1.2.826.0.1.3680043.8.274.1.1.7013080792.45579.4320786143.942",
+    "series_uid": "1.2.826.0.1.3680043.8.274.1.1.8117292811.77179.4669181639.866",
+    "modality": "CT"
+  },
+  {
+    "patient_id": "DET0001201_avg",
+    "source_split": "imagesDET",
+    "reference_available": false,
+    "study_uid": "1.2.826.0.1.3680043.8.274.1.1.2511641213.49508.5941571327.745",
+    "series_uid": "1.2.826.0.1.3680043.8.274.1.1.2951163338.77668.6902836753.453",
+    "modality": "CT"
+  }
+]

@@ -1,0 +1,33 @@
+/**
+ * index.tsx - Minimal Collaboration Extension
+ * 
+ * Simplified version for debugging
+ */
+
+import CollaborationService from './services/CollaborationService';
+import CollaborationPanel from './components/CollaborationPanel';
+
+const extension = {
+  id: '@ohif/extension-collaboration',
+  version: '0.1.0',
+  
+  // Register service
+  preRegistration: ({ servicesManager }) => {
+    servicesManager.registerService(CollaborationService.REGISTRATION);
+  },
+  
+  // Register panel only - no commands for now
+  getPanelModule: () => {
+    return [
+      {
+        name: 'collaboration',
+        iconName: 'icon-users',
+        iconLabel: 'Collaboration',
+        label: 'Collaboration',
+        component: CollaborationPanel,
+      },
+    ];
+  },
+};
+
+export default extension;

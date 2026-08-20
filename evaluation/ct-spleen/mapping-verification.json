@@ -1,0 +1,42 @@
+{
+  "method": "Canonical NIfTI geometry and voxel-intensity comparison between the official MSD source and MONAI Label's Orthanc-derived cache",
+  "intensity_tolerance_hu": 1.0,
+  "verified_at": "2026-06-22",
+  "cases": [
+    {
+      "patient_id": "patient001",
+      "msd_case": "spleen_10",
+      "shape": [512, 512, 55],
+      "spacing": [0.976562, 0.976562, 5.0],
+      "max_abs_hu_difference": 0.0
+    },
+    {
+      "patient_id": "patient002",
+      "msd_case": "spleen_19",
+      "shape": [512, 512, 51],
+      "spacing": [0.796875, 0.796875, 5.0],
+      "max_abs_hu_difference": 0.0
+    },
+    {
+      "patient_id": "patient003",
+      "msd_case": "spleen_29",
+      "shape": [512, 512, 103],
+      "spacing": [0.859375, 0.859375, 5.0],
+      "max_abs_hu_difference": 0.0
+    },
+    {
+      "patient_id": "patient004",
+      "msd_case": "spleen_1",
+      "shape": [512, 512, 34],
+      "spacing": [0.642578, 0.642578, 5.0],
+      "max_abs_hu_difference": 0.0
+    },
+    {
+      "patient_id": "patient005",
+      "msd_case": "spleen_15",
+      "shape": [512, 512, 38],
+      "spacing": [0.740234, 0.740234, 5.0],
+      "max_abs_hu_difference": 0.0
+    }
+  ]
+}

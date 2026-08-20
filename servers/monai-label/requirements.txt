@@ -1,0 +1,9 @@
+monai==1.4.0
+monailabel==0.8.5
+torch>=2.1,<2.5
+nibabel>=5.2,<6
+numpy>=1.24,<2
+itk>=5.3
+pydicom>=2.4,<3
+scipy>=1.11
+scikit-image>=0.22

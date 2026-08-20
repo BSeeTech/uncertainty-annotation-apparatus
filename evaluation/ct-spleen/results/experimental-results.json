@@ -1,0 +1,620 @@
+{
+  "cases": [
+    {
+      "artifact_generation": "bbc8635e-68e5-452b-87de-6e1b6c37654c",
+      "artifacts": {
+        "foreground_probability": {
+          "filename": "foreground_probability.nii.gz",
+          "media_type": "application/gzip",
+          "sha256": "d118817b2365a640252a56101696ec3a5a552258aeb2af7a510ca761da905905",
+          "size_bytes": 52950360
+        },
+        "segmentation": {
+          "filename": "segmentation.nii.gz",
+          "media_type": "application/gzip",
+          "sha256": "6cad5788eb85380aa73fc4dfef163f26caa79dbd5d89fb6bae1221bb675a81f1",
+          "size_bytes": 60838
+        },
+        "uncertainty": {
+          "filename": "uncertainty.nii.gz",
+          "media_type": "application/gzip",
+          "sha256": "33d2af56ccedede2f39e5bfdbe615bbc3ad520f4d3dbce2ce64a7ed5cadc76a7",
+          "size_bytes": 52820440
+        }
+      },
+      "cache_hit": true,
+      "calibration_metrics": {
+        "brier": 0.02442037660838324,
+        "ece_15": 0.029210593458004662,
+        "nll": 0.08287313338176538
+      },
+      "case_id": "1.2.826.0.1.3680043.8.274.1.1.248825330.63900.8824652402.697",
+      "checkpoint": {
+        "model_id": "monailabel-radiology-spleen-unet",
+        "sha256": "b606697f9efad300bbb3b1115abd1245b29e5de0c9de8fac052ab6d2d94f920a",
+        "size_bytes": 19297197,
+        "version": "pretrained/radiology_segmentation_unet_spleen_total_seg.pt"
+      },
+      "condition": "C2",
+      "dropout_probability": 0.2,
+      "metrics_version": "ct-spleen-v1",
+      "modality": "CT",
+      "msd_case": "spleen_10",
+      "num_samples": 16,
+      "operational_scores": {
+        "band": "medium",
+        "score": 0.22344363135406287,
+        "score_fraction_above": 0.14625282596294026,
+        "score_mean_all": 0.0013624289582092064,
+        "score_p95": 0.6131619453430175
+      },
+      "patient_id": "patient001",
+      "provenance_category": "checkpoint_experiment",
+      "reference_mask_available": true,
+      "runtime_seconds": {
+        "monai_inference": 774.3968150615692
+      },
+      "segmentation_metrics": {
+        "absolute_volume_error_ml": 27.37996288575883,
+        "dice": 0.8944820717131474,
+        "hd95_mm": 5.0,
+        "jaccard": 0.8091067985656882,
+        "predicted_volume_ml": 225.6820382131802,
+        "reference_volume_ml": 253.06200109893902,
+        "relative_volume_error": 0.10819468259501415,
+        "surface_dice_2mm": 0.663349979348928
+      },
+      "series_uid": "1.2.826.0.1.3680043.8.274.1.1.784017185.94518.4538589876.211",
+      "study_uid": "1.2.826.0.1.3680043.8.274.1.1.248825330.63900.8824652402.697",
+      "threshold": 0.5,
+      "uncertainty_metrics": {
+        "error_auprc": 0.5065575752731086,
+        "error_auroc": 0.9592331683990124,
+        "mean_entropy_correct": 0.06289695007891961,
+        "mean_entropy_error": 0.49112505976831605,
+        "risk_coverage_auc": 0.00320572599208588
+      }
+    },
+    {
+      "artifact_generation": "2d206a44-d94f-4a0b-aeee-436b89d12ad3",
+      "artifacts": {
+        "foreground_probability": {
+          "filename": "foreground_probability.nii.gz",
+          "media_type": "application/gzip",
+          "sha256": "215348e58997b8bd2ace728df2d4fa7da80a4b8576f6e57e0cef551598f947fc",
+          "size_bytes": 49277316
+        },
+        "segmentation": {
+          "filename": "segmentation.nii.gz",
+          "media_type": "application/gzip",
+          "sha256": "080cb1d2ff6792181b634c6606647a45cc6d4e82596b13f5e4fee26efc998efe",
+          "size_bytes": 59145
+        },
+        "uncertainty": {
+          "filename": "uncertainty.nii.gz",
+          "media_type": "application/gzip",
+          "sha256": "70b034bba97055ea0b8b48700ca349b7731e9d92fec2c8b2f2782f356f0d3cf3",
+          "size_bytes": 49165287
+        }
+      },
+      "cache_hit": true,
+      "calibration_metrics": {
+        "brier": 0.035909060166078824,
+        "ece_15": 0.04066577985534882,
+        "nll": 0.1484252087107516
+      },
+      "case_id": "1.2.826.0.1.3680043.8.274.1.1.786988705.17387.8717949376.670",
+      "checkpoint": {
+        "model_id": "monailabel-radiology-spleen-unet",
+        "sha256": "b606697f9efad300bbb3b1115abd1245b29e5de0c9de8fac052ab6d2d94f920a",
+        "size_bytes": 19297197,
+        "version": "pretrained/radiology_segmentation_unet_spleen_total_seg.pt"
+      },
+      "condition": "C2",
+      "dropout_probability": 0.2,
+      "metrics_version": "ct-spleen-v1",
+      "modality": "CT",
+      "msd_case": "spleen_19",
+      "num_samples": 16,
+      "operational_scores": {
+        "band": "medium",
+        "score": 0.2341281731498491,
+        "score_fraction_above": 0.18838336329971542,
+        "score_mean_all": 0.0027066955003420944,
+        "score_p95": 0.6569433331489563
+      },
+      "patient_id": "patient002",
+      "provenance_category": "checkpoint_experiment",
+      "reference_mask_available": true,
+      "runtime_seconds": {
+        "monai_inference": 525.3388454914093
+      },
+      "segmentation_metrics": {
+        "absolute_volume_error_ml": 40.85970336914062,
+        "dice": 0.8825393314347333,
+        "hd95_mm": 8.778997709377192,
+        "jaccard": 0.7897721649280469,
+        "predicted_volume_ml": 266.6501257324219,
+        "reference_volume_ml": 307.5098291015625,
+        "relative_volume_error": 0.13287283690579438,
+        "surface_dice_2mm": 0.7009321533923304
+      },
+      "series_uid": "1.2.826.0.1.3680043.8.274.1.1.217746236.48460.8396164103.990",
+      "study_uid": "1.2.826.0.1.3680043.8.274.1.1.786988705.17387.8717949376.670",
+      "threshold": 0.5,
+      "uncertainty_metrics": {
+        "error_auprc": 0.3384031723853302,
+        "error_auroc": 0.9030690807785726,
+        "mean_entropy_correct": 0.07373842616195664,
+        "mean_entropy_error": 0.42060529735810803,
+        "risk_coverage_auc": 0.00816056055415835
+      }
+    },
+    {
+      "artifact_generation": "d27e908a-d0ab-41f6-82a4-2e172c3d7c97",
+      "artifacts": {
+        "foreground_probability": {
+          "filename": "foreground_probability.nii.gz",
+          "media_type": "application/gzip",
+          "sha256": "4aacf22bd77f1125b274117f60d23c03c3af48a5cec5ec5a3f3a6c0124fcff62",
+          "size_bytes": 99224604
+        },
+        "segmentation": {
+          "filename": "segmentation.nii.gz",
+          "media_type": "application/gzip",
+          "sha256": "a906ed8a46fd7503917850af95edb25e7090a0b87e753fd8549b169f41459ae8",
+          "size_bytes": 109378
+        },
+        "uncertainty": {
+          "filename": "uncertainty.nii.gz",
+          "media_type": "application/gzip",
+          "sha256": "a1e4699e1e080b1ae2bcd6827b7f002a5e314be85de4dc226f4bd43550626395",
+          "size_bytes": 98978313
+        }
+      },
+      "cache_hit": true,
+      "calibration_metrics": {
+        "brier": 0.0175150516833771,
+        "ece_15": 0.016996563594698363,
+        "nll": 0.05945586729729066
+      },
+      "case_id": "1.2.826.0.1.3680043.8.274.1.1.440932339.25736.8771857202.211",
+      "checkpoint": {
+        "model_id": "monailabel-radiology-spleen-unet",
+        "sha256": "b606697f9efad300bbb3b1115abd1245b29e5de0c9de8fac052ab6d2d94f920a",
+        "size_bytes": 19297197,
+        "version": "pretrained/radiology_segmentation_unet_spleen_total_seg.pt"
+      },
+      "condition": "C2",
+      "dropout_probability": 0.2,
+      "metrics_version": "ct-spleen-v1",
+      "modality": "CT",
+      "msd_case": "spleen_29",
+      "num_samples": 16,
+      "operational_scores": {
+        "band": "medium",
+        "score": 0.1942871572064971,
+        "score_fraction_above": 0.13814793492398558,
+        "score_mean_all": 0.0007054974473253657,
+        "score_p95": 0.6081465423107147
+      },
+      "patient_id": "patient003",
+      "provenance_category": "checkpoint_experiment",
+      "reference_mask_available": true,
+      "runtime_seconds": {
+        "monai_inference": 454.5122649669647
+      },
+      "segmentation_metrics": {
+        "absolute_volume_error_ml": 9.995941162109375,
+        "dice": 0.9120563701362624,
+        "hd95_mm": 5.0,
+        "jaccard": 0.8383305394696738,
+        "predicted_volume_ml": 173.18051147460938,
+        "reference_volume_ml": 183.17645263671875,
+        "relative_volume_error": 0.05457001169213402,
+        "surface_dice_2mm": 0.700092980009298
+      },
+      "series_uid": "1.2.826.0.1.3680043.8.274.1.1.323164088.69886.2011085890.421",
+      "study_uid": "1.2.826.0.1.3680043.8.274.1.1.440932339.25736.8771857202.211",
+      "threshold": 0.5,
+      "uncertainty_metrics": {
+        "error_auprc": 0.44096769606727476,
+        "error_auroc": 0.9689262657431585,
+        "mean_entropy_correct": 0.05231822868294589,
+        "mean_entropy_error": 0.49254544922352583,
+        "risk_coverage_auc": 0.0019380027898153458
+      }
+    },
+    {
+      "artifact_generation": "b4a95f59-6904-4b02-bcf7-f737a14bbb34",
+      "artifacts": {
+        "foreground_probability": {
+          "filename": "foreground_probability.nii.gz",
+          "media_type": "application/gzip",
+          "sha256": "ab4e327d25886f3d68416b9f0ed9bf516d3303aeafe79e3dcdec81377003c2ba",
+          "size_bytes": 32782029
+        },
+        "segmentation": {
+          "filename": "segmentation.nii.gz",
+          "media_type": "application/gzip",
+          "sha256": "4ba5a3a8153491585895dd6d413518868dda366e770be6f8352852301d6328fb",
+          "size_bytes": 37900
+        },
+        "uncertainty": {
+          "filename": "uncertainty.nii.gz",
+          "media_type": "application/gzip",
+          "sha256": "a1a47ce726d944e77e44d57b1a201fb2f267c9b9cb557d40840206f9f7f8354c",
+          "size_bytes": 32697933
+        }
+      },
+      "cache_hit": true,
+      "calibration_metrics": {},
+      "case_id": "1.2.826.0.1.3680043.8.274.1.1.978964378.20833.5934797847.233",
+      "checkpoint": {
+        "model_id": "monailabel-radiology-spleen-unet",
+        "sha256": "b606697f9efad300bbb3b1115abd1245b29e5de0c9de8fac052ab6d2d94f920a",
+        "size_bytes": 19297197,
+        "version": "pretrained/radiology_segmentation_unet_spleen_total_seg.pt"
+      },
+      "condition": "C2",
+      "dropout_probability": 0.2,
+      "metrics_version": "ct-spleen-v1",
+      "modality": "CT",
+      "msd_case": "spleen_1",
+      "num_samples": 16,
+      "operational_scores": {
+        "band": "high",
+        "score": 0.4266714682371137,
+        "score_fraction_above": 0.4134227373403319,
+        "score_mean_all": 0.003332931937092218,
+        "score_p95": 0.6757169306278228
+      },
+      "patient_id": "patient004",
+      "provenance_category": "checkpoint_experiment",
+      "reference_mask_available": false,
+      "runtime_seconds": {
+        "monai_inference": 451.9041278362274
+      },
+      "segmentation_metrics": {},
+      "series_uid": "1.2.826.0.1.3680043.8.274.1.1.435486677.64603.2847829754.141",
+      "study_uid": "1.2.826.0.1.3680043.8.274.1.1.978964378.20833.5934797847.233",
+      "threshold": 0.5,
+      "uncertainty_metrics": {}
+    },
+    {
+      "artifact_generation": "158441f7-7b87-41ef-8b44-7a044c54ba07",
+      "artifacts": {
+        "foreground_probability": {
+          "filename": "foreground_probability.nii.gz",
+          "media_type": "application/gzip",
+          "sha256": "63dbfacf1c710e29012c05b9996fd18edc9e8c8fddcc3be0b3551f822aa8c3d0",
+          "size_bytes": 36560549
+        },
+        "segmentation": {
+          "filename": "segmentation.nii.gz",
+          "media_type": "application/gzip",
+          "sha256": "9ac8cd5484aed10d6019842033ec8fa2c37ff98fb462629edd8280789e55b855",
+          "size_bytes": 41484
+        },
+        "uncertainty": {
+          "filename": "uncertainty.nii.gz",
+          "media_type": "application/gzip",
+          "sha256": "785c45c8f466c670fd2510b8a24f614ee2b09e2ad43670ce335571ca81dcd264",
+          "size_bytes": 36467057
+        }
+      },
+      "cache_hit": true,
+      "calibration_metrics": {},
+      "case_id": "1.2.826.0.1.3680043.8.274.1.1.521426503.86857.9032450883.677",
+      "checkpoint": {
+        "model_id": "monailabel-radiology-spleen-unet",
+        "sha256": "b606697f9efad300bbb3b1115abd1245b29e5de0c9de8fac052ab6d2d94f920a",
+        "size_bytes": 19297197,
+        "version": "pretrained/radiology_segmentation_unet_spleen_total_seg.pt"
+      },
+      "condition": "C2",
+      "dropout_probability": 0.2,
+      "metrics_version": "ct-spleen-v1",
+      "modality": "CT",
+      "msd_case": "spleen_15",
+      "num_samples": 16,
+      "operational_scores": {
+        "band": "high",
+        "score": 0.40451501161240944,
+        "score_fraction_above": 0.38904623239857994,
+        "score_mean_all": 0.0021648260131055595,
+        "score_p95": 0.673982584476471
+      },
+      "patient_id": "patient005",
+      "provenance_category": "checkpoint_experiment",
+      "reference_mask_available": false,
+      "runtime_seconds": {
+        "monai_inference": 194.02258920669556
+      },
+      "segmentation_metrics": {},
+      "series_uid": "1.2.826.0.1.3680043.8.274.1.1.956292836.56138.4474170934.471",
+      "study_uid": "1.2.826.0.1.3680043.8.274.1.1.521426503.86857.9032450883.677",
+      "threshold": 0.5,
+      "uncertainty_metrics": {}
+    }
+  ],
+  "generated_at": "2026-07-01T00:45:54.990040+00:00",
+  "provenance_category": "checkpoint_experiment",
+  "quality_aggregates": {
+    "calibration_metrics": {
+      "brier": {
+        "max": 0.035909060166078824,
+        "mean": 0.02594816281927972,
+        "median": 0.02442037660838324,
+        "min": 0.0175150516833771,
+        "std": 0.009291689030799502
+      },
+      "ece_15": {
+        "max": 0.04066577985534882,
+        "mean": 0.02895764563601728,
+        "median": 0.029210593458004662,
+        "min": 0.016996563594698363,
+        "std": 0.01183663535591285
+      },
+      "nll": {
+        "max": 0.1484252087107516,
+        "mean": 0.09691806979660254,
+        "median": 0.08287313338176538,
+        "min": 0.05945586729729066,
+        "std": 0.04611757915436215
+      }
+    },
+    "runtime_seconds": {
+      "monai_inference": {
+        "max": 774.3968150615692,
+        "mean": 584.7493085066477,
+        "median": 525.3388454914093,
+        "min": 454.5122649669647,
+        "std": 168.01408775477918
+      }
+    },
+    "segmentation_metrics": {
+      "absolute_volume_error_ml": {
+        "max": 40.85970336914062,
+        "mean": 26.078535805669606,
+        "median": 27.37996288575883,
+        "min": 9.995941162109375,
+        "std": 15.472984157124788
+      },
+      "dice": {
+        "max": 0.9120563701362624,
+        "mean": 0.896359257761381,
+        "median": 0.8944820717131474,
+        "min": 0.8825393314347333,
+        "std": 0.01484778650242702
+      },
+      "hd95_mm": {
+        "max": 8.778997709377192,
+        "mean": 6.259665903125731,
+        "median": 5.0,
+        "min": 5.0,
+        "std": 2.181805344775901
+      },
+      "jaccard": {
+        "max": 0.8383305394696738,
+        "mean": 0.8124031676544696,
+        "median": 0.8091067985656882,
+        "min": 0.7897721649280469,
+        "std": 0.024446440874048226
+      },
+      "predicted_volume_ml": {
+        "max": 266.6501257324219,
+        "mean": 221.83755847340382,
+        "median": 225.6820382131802,
+        "min": 173.18051147460938,
+        "std": 46.853251922659865
+      },
+      "reference_volume_ml": {
+        "max": 307.5098291015625,
+        "mean": 247.91609427907343,
+        "median": 253.06200109893902,
+        "min": 183.17645263671875,
+        "std": 62.32621754555778
+      },
+      "relative_volume_error": {
+        "max": 0.13287283690579438,
+        "mean": 0.09854584373098085,
+        "median": 0.10819468259501415,
+        "min": 0.05457001169213402,
+        "std": 0.040033213431828335
+      },
+      "surface_dice_2mm": {
+        "max": 0.7009321533923304,
+        "mean": 0.6881250375835188,
+        "median": 0.700092980009298,
+        "min": 0.663349979348928,
+        "std": 0.021459932103509098
+      }
+    },
+    "uncertainty_metrics": {
+      "error_auprc": {
+        "max": 0.5065575752731086,
+        "mean": 0.42864281457523784,
+        "median": 0.44096769606727476,
+        "min": 0.3384031723853302,
+        "std": 0.08475200782566093
+      },
+      "error_auroc": {
+        "max": 0.9689262657431585,
+        "mean": 0.9437428383069145,
+        "median": 0.9592331683990124,
+        "min": 0.9030690807785726,
+        "std": 0.03555636296974896
+      },
+      "mean_entropy_correct": {
+        "max": 0.07373842616195664,
+        "mean": 0.06298453497460738,
+        "median": 0.06289695007891961,
+        "min": 0.05231822868294589,
+        "std": 0.010710367330088129
+      },
+      "mean_entropy_error": {
+        "max": 0.49254544922352583,
+        "mean": 0.4680919354499833,
+        "median": 0.49112505976831605,
+        "min": 0.42060529735810803,
+        "std": 0.0411307667628829
+      },
+      "risk_coverage_auc": {
+        "max": 0.00816056055415835,
+        "mean": 0.004434763112019858,
+        "median": 0.00320572599208588,
+        "min": 0.0019380027898153458,
+        "std": 0.0032883058653778025
+      }
+    }
+  },
+  "quality_scope": {
+    "count": 3,
+    "patients": [
+      "patient001",
+      "patient002",
+      "patient003"
+    ],
+    "reason": "official MSD reference masks are available"
+  },
+  "workflow_aggregates": {
+    "calibration_metrics": {
+      "brier": {
+        "max": 0.035909060166078824,
+        "mean": 0.02594816281927972,
+        "median": 0.02442037660838324,
+        "min": 0.0175150516833771,
+        "std": 0.009291689030799502
+      },
+      "ece_15": {
+        "max": 0.04066577985534882,
+        "mean": 0.02895764563601728,
+        "median": 0.029210593458004662,
+        "min": 0.016996563594698363,
+        "std": 0.01183663535591285
+      },
+      "nll": {
+        "max": 0.1484252087107516,
+        "mean": 0.09691806979660254,
+        "median": 0.08287313338176538,
+        "min": 0.05945586729729066,
+        "std": 0.04611757915436215
+      }
+    },
+    "runtime_seconds": {
+      "monai_inference": {
+        "max": 774.3968150615692,
+        "mean": 480.03492851257323,
+        "median": 454.5122649669647,
+        "min": 194.02258920669556,
+        "std": 207.33256599162394
+      }
+    },
+    "segmentation_metrics": {
+      "absolute_volume_error_ml": {
+        "max": 40.85970336914062,
+        "mean": 26.078535805669606,
+        "median": 27.37996288575883,
+        "min": 9.995941162109375,
+        "std": 15.472984157124788
+      },
+      "dice": {
+        "max": 0.9120563701362624,
+        "mean": 0.896359257761381,
+        "median": 0.8944820717131474,
+        "min": 0.8825393314347333,
+        "std": 0.01484778650242702
+      },
+      "hd95_mm": {
+        "max": 8.778997709377192,
+        "mean": 6.259665903125731,
+        "median": 5.0,
+        "min": 5.0,
+        "std": 2.181805344775901
+      },
+      "jaccard": {
+        "max": 0.8383305394696738,
+        "mean": 0.8124031676544696,
+        "median": 0.8091067985656882,
+        "min": 0.7897721649280469,
+        "std": 0.024446440874048226
+      },
+      "predicted_volume_ml": {
+        "max": 266.6501257324219,
+        "mean": 221.83755847340382,
+        "median": 225.6820382131802,
+        "min": 173.18051147460938,
+        "std": 46.853251922659865
+      },
+      "reference_volume_ml": {
+        "max": 307.5098291015625,
+        "mean": 247.91609427907343,
+        "median": 253.06200109893902,
+        "min": 183.17645263671875,
+        "std": 62.32621754555778
+      },
+      "relative_volume_error": {
+        "max": 0.13287283690579438,
+        "mean": 0.09854584373098085,
+        "median": 0.10819468259501415,
+        "min": 0.05457001169213402,
+        "std": 0.040033213431828335
+      },
+      "surface_dice_2mm": {
+        "max": 0.7009321533923304,
+        "mean": 0.6881250375835188,
+        "median": 0.700092980009298,
+        "min": 0.663349979348928,
+        "std": 0.021459932103509098
+      }
+    },
+    "uncertainty_metrics": {
+      "error_auprc": {
+        "max": 0.5065575752731086,
+        "mean": 0.42864281457523784,
+        "median": 0.44096769606727476,
+        "min": 0.3384031723853302,
+        "std": 0.08475200782566093
+      },
+      "error_auroc": {
+        "max": 0.9689262657431585,
+        "mean": 0.9437428383069145,
+        "median": 0.9592331683990124,
+        "min": 0.9030690807785726,
+        "std": 0.03555636296974896
+      },
+      "mean_entropy_correct": {
+        "max": 0.07373842616195664,
+        "mean": 0.06298453497460738,
+        "median": 0.06289695007891961,
+        "min": 0.05231822868294589,
+        "std": 0.010710367330088129
+      },
+      "mean_entropy_error": {
+        "max": 0.49254544922352583,
+        "mean": 0.4680919354499833,
+        "median": 0.49112505976831605,
+        "min": 0.42060529735810803,
+        "std": 0.0411307667628829
+      },
+      "risk_coverage_auc": {
+        "max": 0.00816056055415835,
+        "mean": 0.004434763112019858,
+        "median": 0.00320572599208588,
+        "min": 0.0019380027898153458,
+        "std": 0.0032883058653778025
+      }
+    }
+  },
+  "workflow_scope": {
+    "count": 5,
+    "patients": [
+      "patient001",
+      "patient002",
+      "patient003",
+      "patient004",
+      "patient005"
+    ]
+  }
+}

@@ -1,0 +1,60 @@
+diff --git a/node_modules/@cornerstonejs/core/dist/esm/utilities/getClosestImageId.js b/node_modules/@cornerstonejs/core/dist/esm/utilities/getClosestImageId.js
+index 02c8518..7c74c49 100644
+--- a/node_modules/@cornerstonejs/core/dist/esm/utilities/getClosestImageId.js
++++ b/node_modules/@cornerstonejs/core/dist/esm/utilities/getClosestImageId.js
+@@ -21,12 +21,22 @@ export default function getClosestImageId(imageVolume, worldPos, viewPlaneNormal
+         halfSpacingInNormalDirection = spacingInNormalDirection / 2;
+     }
+     let closestImageId;
++    let closestImageIdAbsolute;
+     let minDistance = Infinity;
++    let minDistanceAbsolute = Infinity;
++    let totalImages = 0;
++    let missingPositionCount = 0;
++    let missingImagePlaneCount = 0;
+     for (let i = 0; i < imageIds.length; i++) {
+         const imageId = imageIds[i];
++        totalImages++;
+         const imagePlaneModule = metaData.get('imagePlaneModule', imageId);
+-        if (!imagePlaneModule?.imagePositionPatient) {
+-            log.warn(`Missing imagePositionPatient for imageId: ${imageId}`);
++        if (!imagePlaneModule) {
++            missingImagePlaneCount++;
++            continue;
++        }
++        if (!imagePlaneModule.imagePositionPatient) {
++            missingPositionCount++;
+             continue;
+         }
+         const { imagePositionPatient } = imagePlaneModule;
+@@ -40,6 +50,10 @@ export default function getClosestImageId(imageVolume, worldPos, viewPlaneNormal
+             }
+         }
+         else {
++            if (distance < minDistanceAbsolute) {
++                minDistanceAbsolute = distance;
++                closestImageIdAbsolute = imageId;
++            }
+             if (distance < halfSpacingInNormalDirection && distance < minDistance) {
+                 minDistance = distance;
+                 closestImageId = imageId;
+@@ -47,7 +61,18 @@ export default function getClosestImageId(imageVolume, worldPos, viewPlaneNormal
+         }
+     }
+     if (closestImageId === undefined) {
+-        log.warn('No imageId found within the specified criteria (half spacing or absolute closest).');
++        if (closestImageIdAbsolute !== undefined) {
++            closestImageId = closestImageIdAbsolute;
++            log.warn('No imageId found within half-spacing — falling back to the absolute closest image.');
++        }
++        else {
++            log.warn(
++                'getClosestImageId: no imageId with valid position metadata. ' +
++                `total=${totalImages} missingImagePlane=${missingImagePlaneCount} ` +
++                `missingPosition=${missingPositionCount}. Falling back to middle image.`
++            );
++            closestImageId = imageIds[Math.floor(imageIds.length / 2)];
++        }
+     }
+     return closestImageId;
+ }

@@ -1,0 +1,10 @@
+# Auto detect text files and perform LF normalization
+* text=auto
+*.pt filter=lfs diff=lfs merge=lfs -text
+
+# Evaluation dataset binaries — never treat as text
+*.nii.gz binary
+*.nii binary
+*.dcm binary
+*.dicom binary
+*.wasm binary

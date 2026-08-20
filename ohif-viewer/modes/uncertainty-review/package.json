@@ -1,0 +1,33 @@
+{
+  "name": "@thesis/mode-uncertainty-review",
+  "version": "0.1.0",
+  "description": "OHIF v3 mode that drives uncertainty-guided AI-assisted annotation review across the C0/C1/C2 evaluation conditions.",
+  "license": "MIT",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "files": [
+    "src/",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "test": "jest"
+  },
+  "dependencies": {},
+  "peerDependencies": {
+    "@cornerstonejs/core": "^3.32.5",
+    "@cornerstonejs/tools": "^3.32.5",
+    "@ohif/core": "^3.8.0",
+    "@ohif/extension-default": "^3.8.0",
+    "@ohif/extension-cornerstone": "^3.8.0"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.0",
+    "@types/node": "^20.10.0",
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0",
+    "ts-jest": "^29.1.0",
+    "typescript": "^5.3.0"
+  }
+}

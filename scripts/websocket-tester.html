@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Collaboration WebSocket Tester</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 { color: #00d4ff; margin-bottom: 5px; }
+        .subtitle { color: #888; margin-bottom: 20px; }
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .panel {
+            background: #16213e;
+            border-radius: 8px;
+            padding: 20px;
+        }
+        .panel h2 {
+            margin-top: 0;
+            color: #00d4ff;
+            font-size: 16px;
+            border-bottom: 1px solid #333;
+            padding-bottom: 10px;
+        }
+        .status {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            margin-bottom: 15px;
+        }
+        .status.connected { background: #0d4d0d; }
+        .status.disconnected { background: #4d0d0d; }
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+        .status.connected .status-dot { background: #4ade80; }
+        .status.disconnected .status-dot { background: #ef4444; }
+        input, button, select {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        input {
+            background: #0f0f23;
+            color: #fff;
+            width: 100%;
+            margin-bottom: 10px;
+        }
+        button {
+            background: #00d4ff;
+            color: #000;
+            cursor: pointer;
+            font-weight: bold;
+            margin-right: 5px;
+            margin-bottom: 5px;
+        }
+        button:hover { background: #00a8cc; }
+        button:disabled { background: #555; cursor: not-allowed; }
+        button.danger { background: #ef4444; color: #fff; }
+        button.success { background: #4ade80; color: #000; }
+        .log {
+            background: #0f0f23;
+            border-radius: 4px;
+            padding: 15px;
+            height: 300px;
+            overflow-y: auto;
+            font-family: 'Consolas', monospace;
+            font-size: 12px;
+        }
+        .log-entry {
+            margin-bottom: 5px;
+            padding: 5px;
+            border-radius: 3px;
+        }
+        .log-entry.send { background: #1e3a5f; }
+        .log-entry.receive { background: #1e5f3a; }
+        .log-entry.error { background: #5f1e1e; }
+        .log-entry.info { background: #3a3a1e; }
+        .timestamp { color: #888; }
+        .session-info {
+            background: #0f0f23;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+        }
+        .session-info p { margin: 5px 0; }
+        .session-info strong { color: #00d4ff; }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #888;
+            font-size: 12px;
+        }
+        .button-group { margin-top: 15px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔗 Collaboration WebSocket Tester</h1>
+        <p class="subtitle">Test real-time collaboration features independently</p>
+
+        <div class="grid">
+            <!-- Connection Panel -->
+            <div class="panel">
+                <h2>Connection</h2>
+                <div id="connectionStatus" class="status disconnected">
+                    <span class="status-dot"></span>
+                    <span>Disconnected</span>
+                </div>
+                
+                <label>Server URL</label>
+                <input type="text" id="serverUrl" value="http://localhost:3001" />
+                
+                <div class="button-group">
+                    <button id="connectBtn" onclick="connect()">Connect</button>
+                    <button id="disconnectBtn" onclick="disconnect()" disabled class="danger">Disconnect</button>
+                </div>
+            </div>
+
+            <!-- Session Panel -->
+            <div class="panel">
+                <h2>Session Management</h2>
+                
+                <div id="sessionInfo" class="session-info">
+                    <p><strong>Session:</strong> <span id="currentSession">None</span></p>
+                    <p><strong>Role:</strong> <span id="currentRole">-</span></p>
+                    <p><strong>User ID:</strong> <span id="currentUserId">-</span></p>
+                </div>
+
+                <label>Study Instance UID (for creating)</label>
+                <input type="text" id="studyUid" value="1.2.3.4.5.6.7.8.9.0" />
+                
+                <label>Session ID (for joining)</label>
+                <input type="text" id="joinSessionId" placeholder="Paste session ID here" />
+                
+                <label>Role</label>
+                <select id="roleSelect" style="width: 100%; margin-bottom: 10px; padding: 10px;">
+                    <option value="presenter">Presenter</option>
+                    <option value="follower">Follower</option>
+                </select>
+
+                <div class="button-group">
+                    <button onclick="createSession()" class="success">Create Session</button>
+                    <button onclick="joinSession()">Join Session</button>
+                    <button onclick="leaveSession()" class="danger">Leave</button>
+                </div>
+            </div>
+
+            <!-- Viewport Sync Panel -->
+            <div class="panel">
+                <h2>Viewport Simulation</h2>
+                <p style="color: #888; font-size: 12px;">Simulate viewport changes (only works as presenter)</p>
+                
+                <label>Zoom Level</label>
+                <input type="range" id="zoomSlider" min="0.5" max="3" step="0.1" value="1" 
+                       oninput="broadcastViewport()" style="width: 100%;" />
+                
+                <label>Window Center</label>
+                <input type="range" id="wcSlider" min="-1000" max="1000" step="10" value="40" 
+                       oninput="broadcastViewport()" style="width: 100%;" />
+                
+                <label>Window Width</label>
+                <input type="range" id="wwSlider" min="1" max="2000" step="10" value="400" 
+                       oninput="broadcastViewport()" style="width: 100%;" />
+
+                <div class="button-group">
+                    <button onclick="broadcastViewport()">Send Viewport Update</button>
+                </div>
+            </div>
+
+            <!-- Annotation Panel -->
+            <div class="panel">
+                <h2>Annotation Simulation</h2>
+                
+                <label>Annotation Type</label>
+                <select id="annotationType" style="width: 100%; margin-bottom: 10px; padding: 10px;">
+                    <option value="Length">Length</option>
+                    <option value="EllipticalROI">Elliptical ROI</option>
+                    <option value="RectangleROI">Rectangle ROI</option>
+                    <option value="ArrowAnnotate">Arrow</option>
+                </select>
+
+                <div class="button-group">
+                    <button onclick="sendAnnotation()" class="success">Add Annotation</button>
+                    <button onclick="switchRole()">Switch Role</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Event Log -->
+        <div class="panel" style="margin-top: 20px;">
+            <h2>Event Log</h2>
+            <button onclick="clearLog()" style="float: right; margin-top: -35px;">Clear</button>
+            <div id="eventLog" class="log"></div>
+        </div>
+    </div>
+
+    <script>
+        let socket = null;
+        let userId = 'test-user-' + Math.random().toString(36).substr(2, 9);
+        let currentSessionId = null;
+        let currentRole = 'follower';
+
+        document.getElementById('currentUserId').textContent = userId;
+
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('eventLog');
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            const time = new Date().toLocaleTimeString();
+            entry.innerHTML = `<span class="timestamp">[${time}]</span> ${message}`;
+            logDiv.appendChild(entry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function clearLog() {
+            document.getElementById('eventLog').innerHTML = '';
+        }
+
+        function updateConnectionStatus(connected) {
+            const status = document.getElementById('connectionStatus');
+            status.className = `status ${connected ? 'connected' : 'disconnected'}`;
+            status.querySelector('span:last-child').textContent = connected ? 'Connected' : 'Disconnected';
+            document.getElementById('connectBtn').disabled = connected;
+            document.getElementById('disconnectBtn').disabled = !connected;
+        }
+
+        function updateSessionInfo() {
+            document.getElementById('currentSession').textContent = currentSessionId || 'None';
+            document.getElementById('currentRole').textContent = currentRole;
+        }
+
+        function connect() {
+            const url = document.getElementById('serverUrl').value;
+            log(`Connecting to ${url}...`, 'send');
+
+            socket = io(url, {
+                transports: ['websocket', 'polling'],
+                reconnection: true,
+                reconnectionAttempts: 5,
+                reconnectionDelay: 1000,
+            });
+
+            socket.on('connect', () => {
+                log('✅ Connected! Socket ID: ' + socket.id, 'receive');
+                updateConnectionStatus(true);
+            });
+
+            socket.on('disconnect', (reason) => {
+                log(`🔌 Disconnected: ${reason}`, 'error');
+                updateConnectionStatus(false);
+            });
+
+            socket.on('connect_error', (error) => {
+                log(`❌ Connection error: ${error.message}`, 'error');
+            });
+
+            // Session events
+            socket.on('session:joined', (data) => {
+                log(`✅ Joined session: ${JSON.stringify(data)}`, 'receive');
+                currentSessionId = data.sessionId;
+                currentRole = data.role;
+                updateSessionInfo();
+            });
+
+            socket.on('session:state', (data) => {
+                log(`📦 Session state received: ${data.annotations?.length || 0} annotations`, 'receive');
+            });
+
+            socket.on('user:joined', (data) => {
+                log(`👤 User joined: ${data.userId} as ${data.role}`, 'receive');
+            });
+
+            socket.on('user:left', (data) => {
+                log(`👋 User left: ${data.userId}`, 'receive');
+            });
+
+            // Viewport sync
+            socket.on('viewport:sync', (data) => {
+                log(`🔄 Viewport sync: zoom=${data.viewportState?.zoom?.toFixed(2)}, WC=${data.viewportState?.voi?.windowCenter}`, 'receive');
+            });
+
+            // Annotation events
+            socket.on('annotation:added', (data) => {
+                log(`➕ Annotation added: ${data.annotation?.annotationUID}`, 'receive');
+            });
+
+            socket.on('annotation:modified', (data) => {
+                log(`✏️ Annotation modified: ${data.annotationId}`, 'receive');
+            });
+
+            socket.on('annotation:deleted', (data) => {
+                log(`🗑️ Annotation deleted: ${data.annotationId}`, 'receive');
+            });
+
+            // Role events
+            socket.on('role:changed', (data) => {
+                log(`🔄 Role changed: ${data.userId} → ${data.newRole}`, 'receive');
+            });
+
+            socket.on('role:switched', (data) => {
+                log(`✅ Your role switched to: ${data.newRole}`, 'receive');
+                currentRole = data.newRole;
+                updateSessionInfo();
+            });
+
+            // Errors
+            socket.on('error', (data) => {
+                log(`❌ Error: ${data.message}`, 'error');
+            });
+        }
+
+        function disconnect() {
+            if (socket) {
+                socket.disconnect();
+                socket = null;
+                currentSessionId = null;
+                updateSessionInfo();
+            }
+        }
+
+        function createSession() {
+            if (!socket?.connected) {
+                log('❌ Not connected!', 'error');
+                return;
+            }
+
+            const studyUid = document.getElementById('studyUid').value;
+            
+            // First create via REST API
+            fetch(document.getElementById('serverUrl').value + '/api/sessions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ studyInstanceUID: studyUid, userId: userId })
+            })
+            .then(r => r.json())
+            .then(data => {
+                log(`📝 Session created via API: ${data.sessionId}`, 'send');
+                document.getElementById('joinSessionId').value = data.sessionId;
+                
+                // Now join via WebSocket
+                socket.emit('session:join', {
+                    sessionId: data.sessionId,
+                    userId: userId,
+                    role: 'presenter'
+                });
+                currentRole = 'presenter';
+            })
+            .catch(err => log(`❌ API error: ${err}`, 'error'));
+        }
+
+        function joinSession() {
+            if (!socket?.connected) {
+                log('❌ Not connected!', 'error');
+                return;
+            }
+
+            const sessionId = document.getElementById('joinSessionId').value;
+            const role = document.getElementById('roleSelect').value;
+
+            if (!sessionId) {
+                log('❌ Please enter a session ID', 'error');
+                return;
+            }
+
+            log(`Joining session ${sessionId} as ${role}...`, 'send');
+            socket.emit('session:join', {
+                sessionId: sessionId,
+                userId: userId,
+                role: role
+            });
+            currentRole = role;
+        }
+
+        function leaveSession() {
+            if (!socket?.connected || !currentSessionId) return;
+            
+            log('Leaving session...', 'send');
+            socket.disconnect();
+            currentSessionId = null;
+            updateSessionInfo();
+            connect(); // Reconnect without session
+        }
+
+        function broadcastViewport() {
+            if (!socket?.connected || !currentSessionId) {
+                log('❌ Not in a session!', 'error');
+                return;
+            }
+
+            if (currentRole !== 'presenter') {
+                log('⚠️ Only presenters can broadcast viewport', 'info');
+                return;
+            }
+
+            const viewportState = {
+                zoom: parseFloat(document.getElementById('zoomSlider').value),
+                voi: {
+                    windowCenter: parseInt(document.getElementById('wcSlider').value),
+                    windowWidth: parseInt(document.getElementById('wwSlider').value)
+                }
+            };
+
+            log(`📤 Broadcasting viewport: ${JSON.stringify(viewportState)}`, 'send');
+            socket.emit('viewport:update', {
+                sessionId: currentSessionId,
+                viewportState: viewportState
+            });
+        }
+
+        function sendAnnotation() {
+            if (!socket?.connected || !currentSessionId) {
+                log('❌ Not in a session!', 'error');
+                return;
+            }
+
+            const type = document.getElementById('annotationType').value;
+            const annotation = {
+                annotationUID: 'test-' + Date.now(),
+                data: {
+                    toolType: type,
+                    handles: { start: { x: 100, y: 100 }, end: { x: 200, y: 200 } }
+                },
+                metadata: { createdBy: userId }
+            };
+
+            log(`➕ Sending annotation: ${type}`, 'send');
+            socket.emit('annotation:add', {
+                sessionId: currentSessionId,
+                annotation: annotation
+            });
+        }
+
+        function switchRole() {
+            if (!socket?.connected || !currentSessionId) {
+                log('❌ Not in a session!', 'error');
+                return;
+            }
+
+            const newRole = currentRole === 'presenter' ? 'follower' : 'presenter';
+            log(`🔄 Switching role to ${newRole}...`, 'send');
+            socket.emit('role:switch', {
+                sessionId: currentSessionId,
+                newRole: newRole
+            });
+        }
+    </script>
+</body>
+</html>

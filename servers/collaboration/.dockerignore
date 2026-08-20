@@ -1,0 +1,41 @@
+# Docker ignore file for collaboration server
+# Place at: C:\medical-imaging-platform\servers\collaboration\.dockerignore
+
+# Node modules (will be installed in container)
+node_modules
+npm-debug.log
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Git
+.git
+.gitignore
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+logs
+*.log
+
+# Testing
+coverage
+.nyc_output
+
+# Documentation
+*.md
+docs/
+
+# Development files
+nodemon.json

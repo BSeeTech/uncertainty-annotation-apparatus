@@ -1,0 +1,152 @@
+/**
+ * index.tsx
+ * 
+ * Main entry point for the collaboration extension
+ * Registers services, panels, and commands with OHIF
+ * 
+ * Location: extensions/collaboration/src/index.tsx
+ */
+
+import CollaborationService from './services/CollaborationService';
+import CollaborationPanel from './components/CollaborationPanel';
+
+// Extension ID
+const EXTENSION_ID = '@ohif/extension-collaboration';
+
+/**
+ * Collaboration Extension
+ * 
+ * Provides real-time collaboration features for OHIF Viewer
+ */
+const collaborationExtension = {
+  /**
+   * Extension metadata
+   */
+  id: EXTENSION_ID,
+  version: '0.1.0',
+
+  /**
+   * Pre-registration hook
+   * Called before the extension is fully registered
+   * Use this to register services
+   */
+  preRegistration: ({ servicesManager, configuration = {} }) => {
+    // Register the collaboration service
+    // OHIF will call .create() internally with the configuration
+    servicesManager.registerService(
+      CollaborationService.REGISTRATION
+    );
+  },
+
+  /**
+   * Get Panel Module
+   * Registers UI panels that can be added to the viewer
+   */
+  getPanelModule: ({ servicesManager, commandsManager }) => {
+    return [
+      {
+        name: 'collaboration',
+        iconName: 'icon-users', // Use appropriate icon
+        iconLabel: 'Collaboration',
+        label: 'Collaboration',
+        component: CollaborationPanel,
+        // OHIF automatically passes servicesManager and commandsManager to the component
+      },
+    ];
+  },
+
+  /**
+   * Get Commands Module
+   * Registers commands that can be executed programmatically
+   */
+  getCommandsModule: ({ servicesManager }) => {
+    const collaborationService = servicesManager.services.collaborationService;
+
+    return {
+      definitions: {
+        // Connection commands
+        connectToCollaboration: {
+          commandFn: async () => {
+            await collaborationService.connect();
+          },
+          storeContexts: [],
+          options: {},
+        },
+        disconnectFromCollaboration: {
+          commandFn: () => {
+            collaborationService.disconnect();
+          },
+          storeContexts: [],
+          options: {},
+        },
+
+        // Session commands
+        createCollaborationSession: {
+          commandFn: async ({ studyInstanceUID }) => {
+            return await collaborationService.createSession(studyInstanceUID);
+          },
+          storeContexts: [],
+          options: {},
+        },
+        joinCollaborationSession: {
+          commandFn: async ({ sessionId, role = 'follower' }) => {
+            await collaborationService.joinSession(sessionId, role);
+          },
+          storeContexts: [],
+          options: {},
+        },
+        leaveCollaborationSession: {
+          commandFn: async () => {
+            await collaborationService.leaveSession();
+          },
+          storeContexts: [],
+          options: {},
+        },
+
+        // Role commands
+        switchCollaborationRole: {
+          commandFn: ({ role }) => {
+            collaborationService.switchRole(role);
+          },
+          storeContexts: [],
+          options: {},
+        },
+
+        // Viewport sync commands
+        broadcastViewportUpdate: {
+          commandFn: ({ viewportState }) => {
+            collaborationService.broadcastViewportUpdate(viewportState);
+          },
+          storeContexts: [],
+          options: {},
+        },
+
+        // Annotation sync commands
+        broadcastAnnotationAdded: {
+          commandFn: ({ annotation }) => {
+            collaborationService.broadcastAnnotationAdded(annotation);
+          },
+          storeContexts: [],
+          options: {},
+        },
+        broadcastAnnotationModified: {
+          commandFn: ({ annotationId, changes }) => {
+            collaborationService.broadcastAnnotationModified(annotationId, changes);
+          },
+          storeContexts: [],
+          options: {},
+        },
+        broadcastAnnotationDeleted: {
+          commandFn: ({ annotationId }) => {
+            collaborationService.broadcastAnnotationDeleted(annotationId);
+          },
+          storeContexts: [],
+          options: {},
+        },
+      },
+      defaultContext: 'DEFAULT',
+    };
+  },
+};
+
+export default collaborationExtension;

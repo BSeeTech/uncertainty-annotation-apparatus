@@ -1,0 +1,84 @@
+/**
+ * index.tsx - Collaboration Extension
+ */
+
+import React from 'react';
+import { id } from '../package.json'; // <--- FIX 1: Ensure ID matches package.json
+import CollaborationService from './services/CollaborationService';
+
+/**
+ * FIX 2: Define Component OUTSIDE the module function.
+ * This prevents React from unmounting/remounting it on every render.
+ */
+const CollaborationPanelPlaceholder = (props) => {
+  console.log('🎨 CollaborationPanel rendering', props);
+
+  return (
+    <div style={{
+      padding: '20px',
+      background: '#000000', // OHIF dark theme background
+      color: 'white',
+      height: '100%',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '10px'
+    }}>
+      <h3 style={{ margin: 0 }}>Collaboration Panel</h3>
+      <p style={{ margin: 0 }}>✅ Panel loaded successfully!</p>
+      <p style={{ color: '#9CCEB3' }}> 
+        The collaboration extension is connected.
+      </p>
+    </div>
+  );
+};
+
+const extension = {
+  /**
+   * FIX 1: This usually resolves to "collaboration" (checking your package.json).
+   * If this import fails, hardcode this to "collaboration" to match your Mode.
+   */
+  id, 
+
+  /**
+   * Register the Service
+   */
+  preRegistration: ({ servicesManager }) => {
+    // Ensure CollaborationService has a static REGISTRATION property
+    // OR pass the class itself if following OHIF v3 service pattern
+    if (CollaborationService) {
+        // Note: Depending on your Service implementation, you might need:
+        // servicesManager.registerService(CollaborationService);
+        // For now, we keep your code but wrapped safely:
+        try {
+           servicesManager.registerService(CollaborationService.REGISTRATION || CollaborationService);
+           console.log('✅ Collaboration service registered');
+        } catch (e) {
+           console.warn('⚠️ Could not register Collaboration Service:', e);
+        }
+    }
+  },
+
+  /**
+   * Register Panel
+   */
+  getPanelModule: ({ servicesManager, commandsManager }) => {
+    return [
+      {
+        name: 'collaboration',
+        iconName: 'tab-linear', // Use a standard OHIF icon to ensure it shows up
+        iconLabel: 'Collaboration',
+        label: 'Collaboration',
+        component: CollaborationPanelPlaceholder,
+      },
+    ];
+  },
+
+  getCommandsModule: () => {
+    return {
+      definitions: {},
+      defaultContext: 'DEFAULT',
+    };
+  },
+};
+
+export default extension;

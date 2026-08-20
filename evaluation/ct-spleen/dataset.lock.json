@@ -1,0 +1,41 @@
+{
+  "archive_sha256": "dfeba347daae4fb08c38f4d243ab606b28b91b206ffc445ec55c35489fa65e60",
+  "archive_size_bytes": 1610352640,
+  "dataset_id": "MSD-Task09-Spleen",
+  "files": {
+    "imagesTr/spleen_10.nii.gz": {
+      "sha256": "a0ff3c1e61e150220fdea277c7999e8161b82c6eef4c2c737980b745062c08a3",
+      "size_bytes": 15682065
+    },
+    "imagesTr/spleen_19.nii.gz": {
+      "sha256": "c9b8971df161334ad5277547353a17d621c32d51b752490f767a7d852e472fbc",
+      "size_bytes": 15006227
+    },
+    "imagesTr/spleen_29.nii.gz": {
+      "sha256": "c4268c618d40ef35b6cfa1ef7e82cf7d59f678f4c34b89bb0642372b7408086c",
+      "size_bytes": 30613178
+    },
+    "imagesTs/spleen_1.nii.gz": {
+      "sha256": "a502f7e81d6b3742f5100e501b4e80180264d00e9aa04dfee43d821b1c6b07e7",
+      "size_bytes": 9862639
+    },
+    "imagesTs/spleen_15.nii.gz": {
+      "sha256": "a3cd64aba6371acc20f0bf45bd3dfe2d983de2d6761266347935354c630e861a",
+      "size_bytes": 10467791
+    },
+    "labelsTr/spleen_10.nii.gz": {
+      "sha256": "d371db0dc59819e614732a563b6ede1cc0d2b7bd23ba7ae03cf138d08e63d693",
+      "size_bytes": 17843
+    },
+    "labelsTr/spleen_19.nii.gz": {
+      "sha256": "24f987600b28ee2aafa82f295d00aad0d4589b6db55667749d3d0dec64828c06",
+      "size_bytes": 18554
+    },
+    "labelsTr/spleen_29.nii.gz": {
+      "sha256": "b2d501eb3b47ea79ce484b65f4c7bfd4fe8d28bc8824f6b6124f708ccabd1792",
+      "size_bytes": 30038
+    }
+  },
+  "installed_at": "2026-08-03T07:06:37.878424+00:00",
+  "source_url": "https://msd-for-monai.s3-us-west-2.amazonaws.com/Task09_Spleen.tar"
+}

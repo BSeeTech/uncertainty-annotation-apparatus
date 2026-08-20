@@ -1,0 +1,787 @@
+/**
+ * viewportSync.ts
+ * 
+ * Utilities for synchronizing viewport state between participants
+ * Handles viewport capture, serialization, and application
+ * 
+ * Location: extensions/collaboration/src/utils/viewportSync.ts
+ */
+
+import { getRenderingEngine, Enums } from '@cornerstonejs/core';
+import type { IViewport } from '@cornerstonejs/core/dist/esm/types';
+
+// ============================================
+// Type Definitions
+// ============================================
+
+export interface ViewportState {
+  viewportId: string;
+  renderingEngineId: string;
+  type: string;
+  imageIdIndex?: number;
+  imageId?: string;
+  camera?: {
+    position: [number, number, number];
+    focalPoint: [number, number, number];
+    viewUp: [number, number, number];
+    viewPlaneNormal?: [number, number, number];
+    parallelScale?: number;
+    clippingRange?: [number, number];
+    flipHorizontal?: boolean;
+    flipVertical?: boolean;
+  };
+  zoom?: number;
+  pan?: [number, number];
+  voi?: {
+    windowWidth: number;
+    windowCenter: number;
+  };
+  displayArea?: any;
+  properties?: any;
+  presentation?: {
+    rotation?: number;
+    invert?: boolean;
+    flipHorizontal?: boolean;
+    flipVertical?: boolean;
+  };
+}
+
+// Coalesce remote applies (1 per viewport per animation frame)
+const pendingApply = new Map<string, ViewportState>();
+const pendingApplyOpts = new Map<string, { animate: boolean; animationDuration: number }>();
+const applyRaf = new Map<string, number>();
+
+// Gate stack index applies so rapid scroll doesn't queue Promises endlessly
+const stackApplyInFlight = new Map<string, Promise<any>>();
+const stackApplyPendingIndex = new Map<string, number>();
+
+type ApplyQueue = { running: boolean; pending: ViewportState | null };
+const applyQueues = new Map<string, ApplyQueue>();
+
+
+// ============================================
+// Viewport State Capture
+// ============================================
+
+function normBool(v: any): boolean {
+  return v === true; // undefined/null/false -> false
+}
+
+function normRotation(v: any): number {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return 0;
+  const r = ((Math.round(n) % 360) + 360) % 360;
+  return r;
+}
+
+/**
+ * Capture current viewport state for synchronization
+ */
+export function captureViewportState(
+  renderingEngineId: string,
+  viewportId: string
+): ViewportState | null {
+  try {
+    const renderingEngine = getRenderingEngine(renderingEngineId);
+    if (!renderingEngine) {
+      console.warn(`Rendering engine ${renderingEngineId} not found`);
+      return null;
+    }
+
+    const viewport = renderingEngine.getViewport(viewportId);
+    if (!viewport) {
+      console.warn(`Viewport ${viewportId} not found`);
+      return null;
+    }
+
+    const state: ViewportState = {
+      viewportId,
+      renderingEngineId,
+      type: viewport.type,
+    };
+
+    // Capture stack position (for StackViewport)
+    if ('getCurrentImageIdIndex' in viewport) {
+      try {
+        state.imageIdIndex = (viewport as any).getCurrentImageIdIndex();
+      } catch (e) {
+        // ignore
+      }
+    }
+    if ('getCurrentImageId' in viewport) {
+      try {
+        state.imageId = (viewport as any).getCurrentImageId();
+      } catch (e) {
+        // ignore
+      }
+    }
+
+    // Capture camera (for 3D viewports)
+    if ('getCamera' in viewport) {
+      const camera = (viewport as any).getCamera();
+      if (camera) {
+        const camState: any = {
+          position: Array.from(camera.position) as [number, number, number],
+          focalPoint: Array.from(camera.focalPoint) as [number, number, number],
+          viewUp: Array.from(camera.viewUp) as [number, number, number],
+        };
+
+		if (camera.viewPlaneNormal) {
+          camState.viewPlaneNormal = Array.from(camera.viewPlaneNormal) as [number, number, number];
+        }
+
+        if (camera.parallelScale !== undefined) {
+          camState.parallelScale = camera.parallelScale;
+        }
+
+        if (camera.clippingRange) {
+          camState.clippingRange = Array.from(camera.clippingRange) as [number, number];
+        }
+
+        if (camera.flipHorizontal !== undefined) {
+          camState.flipHorizontal = camera.flipHorizontal;
+        }
+
+        if (camera.flipVertical !== undefined) {
+          camState.flipVertical = camera.flipVertical;
+        }
+
+        state.camera = camState;
+      }
+    }
+
+    // Capture zoom
+    if ('getZoom' in viewport) {
+      state.zoom = (viewport as any).getZoom();
+    }
+
+    // Capture pan
+    if ('getPan' in viewport) {
+      const pan = (viewport as any).getPan();
+      if (pan) {
+        state.pan = [pan[0], pan[1]];
+      }
+    }
+
+    // Capture properties (VOI, presentation-related flags when present)
+    const properties = (viewport as any).getProperties?.();
+    if (properties) {
+      if (properties.voiRange) {
+        const { lower, upper } = properties.voiRange;
+        const windowWidth = upper - lower;
+        const windowCenter = lower + windowWidth / 2;
+        state.voi = { windowWidth, windowCenter };
+      }
+
+      // Keep for debugging / fallbacks
+      state.properties = {
+        rotation: properties.rotation ?? (viewport as any).getRotation?.(),
+        invert: properties.invert ?? (viewport as any).getInvert?.(),
+        flipHorizontal: properties.flipHorizontal ?? properties.hflip,
+        flipVertical: properties.flipVertical ?? properties.vflip,
+      };
+    }
+
+    // Capture fallback: some builds store presentation in displayArea.presentation (esp SR/SEG)
+    // We read it for capture ONLY, but we do NOT sync displayArea itself (SEG can get reset).
+    const da = (viewport as any).getDisplayArea?.();
+    const daPres = da?.presentation ?? {};
+
+    const viewPres = (viewport as any).getViewPresentation?.();
+
+    // Collect presentation bits. Prefer ViewPresentation, then getters, then Properties, then DisplayArea.presentation.
+    const rotation =
+      viewPres?.rotation ??
+      (viewport as any).getRotation?.() ??
+      state.properties?.rotation ??
+      daPres.rotation;
+
+    const invert =
+      viewPres?.invert ??
+      (viewport as any).getInvert?.() ??
+      state.properties?.invert ??
+      daPres.invert;
+
+    const flipHorizontal =
+      viewPres?.flipHorizontal ??
+      (viewport as any).getFlipHorizontal?.() ??
+      state.properties?.flipHorizontal ??
+      daPres.flipHorizontal ??
+      daPres.hflip;
+
+    const flipVertical =
+      viewPres?.flipVertical ??
+      (viewport as any).getFlipVertical?.() ??
+      state.properties?.flipVertical ??
+      daPres.flipVertical ??
+      daPres.vflip;
+
+    state.presentation = {
+      rotation: normRotation(rotation),
+      invert: normBool(invert),
+      flipHorizontal: normBool(flipHorizontal),
+      flipVertical: normBool(flipVertical),
+    };
+
+    return state;
+  } catch (error) {
+    console.error('Error capturing viewport state:', error);
+    return null;
+  }
+}
+
+// ============================================
+// Viewport State Application
+// ============================================
+
+const suppressCaptureUntil = new Map<string, number>();
+
+function keyFor(renderingEngineId: string, viewportId: string) {
+  return `${renderingEngineId}::${viewportId}`;
+}
+
+function suppressCapture(renderingEngineId: string, viewportId: string, ms = 120) {
+  suppressCaptureUntil.set(keyFor(renderingEngineId, viewportId), performance.now() + ms);
+}
+
+function isSuppressed(renderingEngineId: string, viewportId: string) {
+  const until = suppressCaptureUntil.get(keyFor(renderingEngineId, viewportId)) ?? 0;
+  return performance.now() < until;
+}
+
+function isStackLikeViewport(viewport: any, viewportState: ViewportState) {
+  const vpType = (Enums as any)?.ViewportType;
+  return (
+    viewportState.type === vpType?.STACK ||
+    viewportState.type === 'STACK' ||
+    viewportState.imageIdIndex !== undefined ||
+    ('setImageIdIndex' in viewport)
+  );
+}
+
+function applyPresentation(viewport: any, pres: any) {
+  if (!pres) return;
+
+  // Prefer unified API
+  if (viewport.setViewPresentation && viewport.getViewPresentation) {
+    const current = viewport.getViewPresentation() ?? {};
+    const next = { ...current };
+
+    if (pres.rotation !== undefined) next.rotation = pres.rotation;
+    if (pres.invert !== undefined) next.invert = pres.invert;
+    if (pres.flipHorizontal !== undefined) next.flipHorizontal = pres.flipHorizontal;
+    if (pres.flipVertical !== undefined) next.flipVertical = pres.flipVertical;
+
+    viewport.setViewPresentation(next);
+    return;
+  }
+
+  // Fall back to individual setters
+  if (pres.rotation !== undefined && viewport.setRotation) viewport.setRotation(pres.rotation);
+
+  if (pres.invert !== undefined) {
+    if (viewport.setInvert) viewport.setInvert(pres.invert);
+    else if (viewport.setProperties) {
+      try { viewport.setProperties({ invert: pres.invert }); } catch {}
+    }
+  }
+
+  if (pres.flipHorizontal !== undefined && viewport.setFlipHorizontal) viewport.setFlipHorizontal(pres.flipHorizontal);
+  if (pres.flipVertical !== undefined && viewport.setFlipVertical) viewport.setFlipVertical(pres.flipVertical);
+}
+
+function applyNonStackStateFromState(
+  viewportState: ViewportState,
+  viewport: any,
+  renderingEngineId: string,
+  viewportId: string
+) {
+  const isStack = isStackLikeViewport(viewport, viewportState);
+
+  // 1) Camera for non-stack (3D). For stack we generally rely on pan/zoom/presentation instead.
+  if (!isStack && viewportState.camera && 'setCamera' in viewport) {
+    (viewport as any).setCamera(viewportState.camera);
+  }
+
+  // 2) Pan/Zoom for any viewport that supports them (STACK + SR + SEG + some volume viewports)
+  if (viewportState.zoom !== undefined && 'setZoom' in viewport) {
+    (viewport as any).setZoom(viewportState.zoom);
+  }
+  if (viewportState.pan && 'setPan' in viewport) {
+    (viewport as any).setPan(viewportState.pan);
+  }
+
+  // 3) VOI only via setProperties (don’t put invert/rotation/flips here)
+  if ('setProperties' in viewport && viewportState.voi) {
+    const { windowWidth, windowCenter } = viewportState.voi;
+    const lower = windowCenter - windowWidth / 2;
+    const upper = windowCenter + windowWidth / 2;
+    (viewport as any).setProperties({ voiRange: { lower, upper } });
+  }
+
+  // 4) Presentation ONLY via setViewPresentation / fallbacks
+  const pres = viewportState.presentation ?? {};
+  const hasAnyPres =
+    pres.rotation !== undefined ||
+    pres.invert !== undefined ||
+    pres.flipHorizontal !== undefined ||
+    pres.flipVertical !== undefined;
+
+  if (hasAnyPres) {
+    applyPresentation(viewport, pres);
+
+    // make it “stick” across stack image swaps (SEG/SR/CT)
+    if (isStack) {
+      requestAnimationFrame(() => {
+        try {
+          applyPresentation(viewport, pres);
+          viewport.render();
+        } catch {}
+      });
+    }
+  }
+
+  // Prevent remote apply from re-broadcasting as “local” changes
+  suppressCapture(renderingEngineId, viewportId, 150);
+
+  viewport.render();
+}
+
+/**
+ * Apply remote viewport state to local viewport
+ */
+export function applyViewportState(
+  viewportState: ViewportState,
+  options: { animate?: boolean; animationDuration?: number } = {}
+): boolean {
+  try {
+    const { renderingEngineId, viewportId } = viewportState;
+
+    const renderingEngine = getRenderingEngine(renderingEngineId);
+    if (!renderingEngine) return false;
+
+    const viewport = renderingEngine.getViewport(viewportId);
+    if (!viewport) return false;
+
+    const key = `${renderingEngineId}::${viewportId}`;
+    const q = applyQueues.get(key) ?? { running: false, pending: null };
+    q.pending = viewportState;
+    applyQueues.set(key, q);
+
+    if (q.running) return true;
+    q.running = true;
+
+    (async () => {
+      try {
+        while (q.pending) {
+          const state = q.pending;
+          q.pending = null;
+
+          // Stack index first (await), but if newer arrives while waiting, skip applying the rest for the old one
+          if (
+            state.imageIdIndex !== undefined &&
+            'setImageIdIndex' in viewport &&
+            typeof (viewport as any).setImageIdIndex === 'function'
+          ) {
+            const p = (viewport as any).setImageIdIndex(state.imageIdIndex);
+            if (p && typeof p.then === 'function') {
+              try {
+                await p;
+              } catch (e) {
+                console.error('Error applying stack index:', e);
+              }
+              // If a newer state arrived while we awaited, loop and apply that instead
+              if (q.pending) continue;
+            }
+          }
+
+          // Apply the rest (pan/zoom/rotation/voi/etc)
+          // (use the applyNonStackState implementation from section B above)
+          // eslint-disable-next-line @typescript-eslint/no-use-before-define
+          applyNonStackStateFromState(state, viewport, renderingEngineId, viewportId);
+        }
+      } finally {
+        q.running = false;
+      }
+    })();
+
+    return true;
+  } catch (error) {
+    console.error('Error applying viewport state:', error);
+    return false;
+  }
+}
+
+// ============================================
+// Viewport State Comparison
+// ============================================
+
+function extractPresentationBits(state: ViewportState | null) {
+  const pres = state?.presentation ?? {};
+  return {
+    rotation: normRotation(pres.rotation),
+    invert: normBool(pres.invert),
+    flipHorizontal: normBool(pres.flipHorizontal),
+    flipVertical: normBool(pres.flipVertical),
+  };
+}
+
+/**
+ * Check if two viewport states are significantly different
+ * Used to avoid unnecessary updates
+ */
+export function hasSignificantChange(
+  state1: ViewportState | null,
+  state2: ViewportState | null,
+  threshold: number = 0.01
+): boolean {
+  if (!state1 || !state2) {
+    return true;
+  }
+
+  // Check stack index change
+  if (state1.imageIdIndex !== state2.imageIdIndex) {
+    return true;
+  }
+
+  // Check zoom difference
+  if (state1.zoom !== undefined && state2.zoom !== undefined) {
+    if (Math.abs(state1.zoom - state2.zoom) > threshold) {
+      return true;
+    }
+  }
+
+  // Check pan difference
+  if (state1.pan && state2.pan) {
+    const panDiff = Math.sqrt(
+      Math.pow(state1.pan[0] - state2.pan[0], 2) +
+      Math.pow(state1.pan[1] - state2.pan[1], 2)
+    );
+    if (panDiff > threshold) {
+      return true;
+    }
+  }
+
+  // Check camera flip flags too (some builds store flips in camera)
+  if (state1.camera && state2.camera) {
+    const fh1 = (state1.camera as any).flipHorizontal;
+    const fh2 = (state2.camera as any).flipHorizontal;
+    if (fh1 !== undefined || fh2 !== undefined) {
+      if (fh1 !== fh2) return true;
+    }
+
+    const fv1 = (state1.camera as any).flipVertical;
+    const fv2 = (state2.camera as any).flipVertical;
+    if (fv1 !== undefined || fv2 !== undefined) {
+      if (fv1 !== fv2) return true;
+    }
+  }
+
+  // Check invert/rotation (rotate stack + invert use setProperties)
+  if (state1.properties || state2.properties) {
+    const r1 = state1.properties?.rotation;
+    const r2 = state2.properties?.rotation;
+    if (r1 !== undefined || r2 !== undefined) {
+      if (r1 !== r2) return true;
+    }
+
+    const i1 = state1.properties?.invert;
+    const i2 = state2.properties?.invert;
+    if (i1 !== undefined || i2 !== undefined) {
+      if (i1 !== i2) return true;
+    }
+  }
+
+  // Check VOI difference
+  if (state1.voi && state2.voi) {
+    if (
+      Math.abs(state1.voi.windowWidth - state2.voi.windowWidth) > 1 ||
+      Math.abs(state1.voi.windowCenter - state2.voi.windowCenter) > 1
+    ) {
+      return true;
+    }
+  }
+
+  // Check presentation changes (rotation / invert / flips)
+  const a = extractPresentationBits(state1);
+  const b = extractPresentationBits(state2);
+
+  // Compare only when at least one side is defined to avoid “undefined !== undefined” noise
+  const keys: Array<keyof typeof a> = ['rotation', 'invert', 'flipHorizontal', 'flipVertical'];
+  for (const k of keys) {
+    const av = a[k];
+    const bv = b[k];
+    if (av !== undefined || bv !== undefined) {
+      if (av !== bv) return true;
+    }
+  }
+
+  return false;
+}
+
+function buildDeltaViewportState(prev: ViewportState | null, next: ViewportState): ViewportState {
+  if (!prev) return next;
+
+  const delta: ViewportState = {
+    viewportId: next.viewportId,
+    renderingEngineId: next.renderingEngineId,
+    type: next.type,
+  };
+
+  // Presentation first: if invert/rotate/flip changed, send ONLY that.
+  const pPrev = prev.presentation ?? {};
+  const pNext = next.presentation ?? {};
+  const presDelta: any = {};
+
+  const prevRot = normRotation(pPrev.rotation);
+  const nextRot = normRotation(pNext.rotation);
+  if (nextRot !== prevRot) presDelta.rotation = nextRot;
+
+  const prevInv = normBool(pPrev.invert);
+  const nextInv = normBool(pNext.invert);
+  if (nextInv !== prevInv) presDelta.invert = nextInv;
+
+  const prevFH = normBool(pPrev.flipHorizontal);
+  const nextFH = normBool(pNext.flipHorizontal);
+  if (nextFH !== prevFH) presDelta.flipHorizontal = nextFH;
+
+  const prevFV = normBool(pPrev.flipVertical);
+  const nextFV = normBool(pNext.flipVertical);
+  if (nextFV !== prevFV) presDelta.flipVertical = nextFV;
+
+  if (Object.keys(presDelta).length) {
+    delta.presentation = presDelta;
+    return delta;
+  }
+
+  if (next.imageIdIndex !== undefined && next.imageIdIndex !== prev.imageIdIndex) delta.imageIdIndex = next.imageIdIndex;
+  if (next.imageId && next.imageId !== prev.imageId) delta.imageId = next.imageId;
+
+  if (next.zoom !== undefined && (prev.zoom === undefined || Math.abs(next.zoom - prev.zoom) > 0.01)) delta.zoom = next.zoom;
+
+  if (next.pan) {
+    const p0 = prev.pan;
+    const panDiff = p0 ? Math.hypot(next.pan[0] - p0[0], next.pan[1] - p0[1]) : Number.POSITIVE_INFINITY;
+    if (!p0 || panDiff > 0.01) delta.pan = next.pan;
+  }
+
+  if (next.voi) {
+    const v0 = prev.voi;
+    if (!v0 || Math.abs(next.voi.windowWidth - v0.windowWidth) > 1 || Math.abs(next.voi.windowCenter - v0.windowCenter) > 1) {
+      delta.voi = next.voi;
+    }
+  }
+
+  const hasPayload =
+    delta.imageIdIndex !== undefined ||
+    delta.imageId !== undefined ||
+    delta.zoom !== undefined ||
+    !!delta.pan ||
+    !!delta.voi ||
+    !!delta.presentation ||
+    !!delta.camera;
+
+  return hasPayload ? delta : next;
+}
+
+// ============================================
+// Viewport Event Monitoring
+// ============================================
+
+/**
+ * Setup viewport event listeners for synchronization
+ */
+export function setupViewportListeners(
+  renderingEngineId: string,
+  viewportId: string,
+  callback: (state: ViewportState) => void
+): () => void {
+  const renderingEngine = getRenderingEngine(renderingEngineId);
+  if (!renderingEngine) return () => {};
+
+  const viewport = renderingEngine.getViewport(viewportId);
+  if (!viewport) return () => {};
+
+  const element = viewport.element;
+
+  let lastState: ViewportState | null = null;
+  let rafId = 0;
+  let lastEvtType: string | undefined;
+
+  const scheduleCapture = () => {
+    if (rafId) return;
+
+    rafId = requestAnimationFrame(() => {
+      rafId = 0;
+
+      const currentState = captureViewportState(renderingEngineId, viewportId);
+      if (!currentState) return;
+
+      // Don’t echo remote-applied updates back over the wire
+      if (isSuppressed(renderingEngineId, viewportId)) {
+        lastState = currentState;
+        return;
+      }
+
+      if (hasSignificantChange(lastState, currentState)) {
+        const prev = lastState;
+        lastState = currentState;
+
+        const delta = buildDeltaViewportState(prev, currentState);
+
+        console.log('[Collab] evt:', lastEvtType, 'delta:', delta);
+        callback(delta); // send ONLY delta (invert-only stays invert-only)
+      }
+    });
+  };
+
+  const onViewportEvent = (evt: Event) => {
+    lastEvtType = evt.type;
+    scheduleCapture();
+  };
+
+  const csEvents = (Enums as any)?.Events ?? {};
+
+  // Don’t include IMAGE_RENDERED / VIEWPORT_RENDERED for syncing (too chatty)
+  const eventsToListen: string[] = [
+    csEvents.CAMERA_MODIFIED ?? 'CORNERSTONE_CAMERA_MODIFIED',
+    csEvents.VOI_MODIFIED ?? 'CORNERSTONE_VOI_MODIFIED',
+    csEvents.DISPLAY_AREA_MODIFIED ?? 'CORNERSTONE_DISPLAY_AREA_MODIFIED',
+    csEvents.STACK_VIEWPORT_SCROLL ?? 'CORNERSTONE_STACK_VIEWPORT_SCROLL',
+    csEvents.STACK_NEW_IMAGE ?? 'CORNERSTONE_STACK_NEW_IMAGE',
+    csEvents.VIEW_PRESENTATION_MODIFIED ?? 'CORNERSTONE_VIEW_PRESENTATION_MODIFIED',
+    csEvents.VIEWPORT_PROPERTIES_MODIFIED ?? 'CORNERSTONE_VIEWPORT_PROPERTIES_MODIFIED',
+    csEvents.PROPERTIES_MODIFIED ?? 'CORNERSTONE_PROPERTIES_MODIFIED',
+
+    // legacy
+    'cornerstoneCameraModified',
+    'cornerstoneVOIModified',
+    'cornerstoneDisplayAreaModified',
+    'cornerstoneStackScroll',
+    'cornerstoneViewPresentationModified',
+    'cornerstoneViewportPropertiesModified',
+  ].filter(Boolean);
+
+  const uniqueEvents = Array.from(new Set(eventsToListen));
+  uniqueEvents.forEach(evtName => element.addEventListener(evtName, onViewportEvent));
+  console.log('[Collab] listening to', uniqueEvents);
+
+  return () => {
+    uniqueEvents.forEach(evtName => element.removeEventListener(evtName, onViewportEvent));
+    if (rafId) cancelAnimationFrame(rafId);
+  };
+}
+
+// ============================================
+// Viewport Utilities
+// ============================================
+
+/**
+ * Get all active viewports in the viewer
+ */
+export function getActiveViewports(servicesManager) {
+  const { viewportGridService, cornerstoneViewportService } =
+    servicesManager?.services || {};
+
+  if (!viewportGridService?.getState) return [];
+
+  const state = viewportGridService.getState() || {};
+  const activeId =
+    viewportGridService.getActiveViewportId?.() ?? state.activeViewportId;
+
+  const viewportsState = state.viewports;
+
+  // 1) Normalize viewports into [{ viewportId, renderingEngineId }, ...]
+  const defaultEngineId =
+    cornerstoneViewportService?.getRenderingEngine?.()?.id ||
+    cornerstoneViewportService?.renderingEngineId ||
+    'default';
+
+  const normalized: Array<{ viewportId: string; renderingEngineId: string }> = [];
+
+  if (viewportsState instanceof Map) {
+    for (const [key, vp] of viewportsState.entries()) {
+      const viewportId = vp?.viewportId ?? vp?.viewportOptions?.viewportId ?? key;
+      const renderingEngineId =
+        vp?.renderingEngineId ??
+        vp?.viewportOptions?.renderingEngineId ??
+        defaultEngineId;
+
+      normalized.push({ viewportId, renderingEngineId });
+    }
+  } else if (Array.isArray(viewportsState)) {
+    viewportsState.forEach((vp, idx) => {
+      const viewportId = vp?.viewportId ?? vp?.viewportOptions?.viewportId ?? String(idx);
+      const renderingEngineId =
+        vp?.renderingEngineId ??
+        vp?.viewportOptions?.renderingEngineId ??
+        defaultEngineId;
+
+      normalized.push({ viewportId, renderingEngineId });
+    });
+  } else if (viewportsState && typeof viewportsState === 'object') {
+    Object.values(viewportsState).forEach((vp: any, idx) => {
+      const viewportId = vp?.viewportId ?? vp?.viewportOptions?.viewportId ?? String(idx);
+      const renderingEngineId =
+        vp?.renderingEngineId ??
+        vp?.viewportOptions?.renderingEngineId ??
+        defaultEngineId;
+
+      normalized.push({ viewportId, renderingEngineId });
+    });
+  }
+
+  // 2) Put the active viewport first (so callers can prefer it)
+  if (activeId) {
+    const i = normalized.findIndex(v => String(v.viewportId) === String(activeId));
+    if (i > 0) {
+      const [active] = normalized.splice(i, 1);
+      normalized.unshift(active);
+    }
+  }
+
+  return normalized;
+}
+
+/**
+ * Reset viewport to initial state
+ */
+export function resetViewport(
+  renderingEngineId: string,
+  viewportId: string
+): boolean {
+  try {
+    const renderingEngine = getRenderingEngine(renderingEngineId);
+    if (!renderingEngine) {
+      return false;
+    }
+
+    const viewport = renderingEngine.getViewport(viewportId);
+    if (!viewport) {
+      return false;
+    }
+
+    if ('resetCamera' in viewport) {
+      (viewport as any).resetCamera();
+    }
+
+    if ('resetProperties' in viewport) {
+      (viewport as any).resetProperties();
+    }
+
+    viewport.render();
+    return true;
+  } catch (error) {
+    console.error('Error resetting viewport:', error);
+    return false;
+  }
+}
+
+export default {
+  captureViewportState,
+  applyViewportState,
+  hasSignificantChange,
+  setupViewportListeners,
+  getActiveViewports,
+  resetViewport,
+};

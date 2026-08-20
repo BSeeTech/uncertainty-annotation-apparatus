@@ -1,0 +1,156 @@
+/**
+ * index.tsx
+ * 
+ * Main entry point for the collaboration extension
+ * Registers services, panels, and commands with OHIF
+ * 
+ * Location: extensions/collaboration/src/index.tsx
+ */
+
+import CollaborationService from './services/CollaborationService';
+import CollaborationPanel from './components/CollaborationPanel';
+
+// Extension ID
+const EXTENSION_ID = '@ohif/extension-collaboration';
+
+/**
+ * Collaboration Extension
+ * 
+ * Provides real-time collaboration features for OHIF Viewer
+ */
+const extension = {
+  /**
+   * Extension metadata
+   */
+  id: EXTENSION_ID,
+  version: '0.1.0',
+
+  /**
+   * Pre-registration hook
+   * Called before the extension is fully registered
+   * Use this to register services
+   */
+  preRegistration: ({ servicesManager, configuration = {} }) => {
+    // Register the collaboration service
+    servicesManager.registerService(CollaborationService.REGISTRATION);
+  },
+
+  /**
+   * Get Panel Module
+   * Registers UI panels that can be added to the viewer
+   */
+  getPanelModule: ({ servicesManager, commandsManager }) => {
+    return [
+      {
+        name: 'collaboration',
+        iconName: 'icon-users',
+        iconLabel: 'Collaboration',
+        label: 'Collaboration',
+        component: CollaborationPanel,
+      },
+    ];
+  },
+
+  /**
+   * Get Commands Module
+   * Registers commands that can be executed programmatically
+   */
+  getCommandsModule: ({ servicesManager }) => {
+    return {
+      definitions: {
+        // Connection commands
+        connectToCollaboration: {
+          commandFn: async () => {
+            const { collaborationService } = servicesManager.services;
+            await collaborationService.connect();
+          },
+          storeContexts: [],
+          options: {},
+        },
+        disconnectFromCollaboration: {
+          commandFn: () => {
+            const { collaborationService } = servicesManager.services;
+            collaborationService.disconnect();
+          },
+          storeContexts: [],
+          options: {},
+        },
+
+        // Session commands
+        createCollaborationSession: {
+          commandFn: async ({ studyInstanceUID }) => {
+            const { collaborationService } = servicesManager.services;
+            return await collaborationService.createSession(studyInstanceUID);
+          },
+          storeContexts: [],
+          options: {},
+        },
+        joinCollaborationSession: {
+          commandFn: async ({ sessionId, role = 'follower' }) => {
+            const { collaborationService } = servicesManager.services;
+            await collaborationService.joinSession(sessionId, role);
+          },
+          storeContexts: [],
+          options: {},
+        },
+        leaveCollaborationSession: {
+          commandFn: async () => {
+            const { collaborationService } = servicesManager.services;
+            await collaborationService.leaveSession();
+          },
+          storeContexts: [],
+          options: {},
+        },
+
+        // Role commands
+        switchCollaborationRole: {
+          commandFn: ({ role }) => {
+            const { collaborationService } = servicesManager.services;
+            collaborationService.switchRole(role);
+          },
+          storeContexts: [],
+          options: {},
+        },
+
+        // Viewport sync commands
+        broadcastViewportUpdate: {
+          commandFn: ({ viewportState }) => {
+            const { collaborationService } = servicesManager.services;
+            collaborationService.broadcastViewportUpdate(viewportState);
+          },
+          storeContexts: [],
+          options: {},
+        },
+
+        // Annotation sync commands
+        broadcastAnnotationAdded: {
+          commandFn: ({ annotation }) => {
+            const { collaborationService } = servicesManager.services;
+            collaborationService.broadcastAnnotationAdded(annotation);
+          },
+          storeContexts: [],
+          options: {},
+        },
+        broadcastAnnotationModified: {
+          commandFn: ({ annotationId, changes }) => {
+            const { collaborationService } = servicesManager.services;
+            collaborationService.broadcastAnnotationModified(annotationId, changes);
+          },
+          storeContexts: [],
+          options: {},
+        },
+        broadcastAnnotationDeleted: {
+          commandFn: ({ annotationId }) => {
+            const { collaborationService } = servicesManager.services;
+            collaborationService.broadcastAnnotationDeleted(annotationId);
+          },
+          storeContexts: [],
+          options: {},
+        },
+      },
+      defaultContext: 'DEFAULT',
+    };
+  },
+};
+
+export default extension;

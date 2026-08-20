@@ -1,0 +1,351 @@
+# Medical Imaging Platform - Docker Compose Configuration
+# Place this file at: C:\medical-imaging-platform\docker-compose.yml
+# Version: 1.3 - Phase 4 (CORS Fix)
+
+services:
+  # ============================================
+  # Orthanc PACS - DICOM Image Storage
+  # ============================================
+  orthanc:
+    image: orthancteam/orthanc:24.10.1
+    container_name: medical-orthanc
+    ports:
+      - "8042:8042"    # HTTP/DICOMweb API
+      - "4242:4242"    # DICOM protocol (C-STORE, C-FIND, etc.)
+    volumes:
+      - orthanc-data:/var/lib/orthanc/db
+      - type: bind
+        source: ./servers/orthanc/orthanc.json
+        target: /etc/orthanc/orthanc.json
+        read_only: true
+    command: ["/etc/orthanc/orthanc.json"]
+    environment:
+      - VERBOSE_ENABLED=true
+      - VERBOSE_STARTUP=true
+    restart: unless-stopped
+    networks:
+      - medical-net
+    healthcheck:
+      test: ["CMD-SHELL", "grep -q ':1F6A[[:space:]]' /proc/net/tcp || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # ============================================
+  # Nginx Proxy - CORS Handler for OHIF
+  # ============================================
+  nginx:
+    image: nginx:alpine
+    container_name: medical-nginx
+    ports:
+      - "8043:80"
+      - "8044:8044"    # ADD THIS LINE for MONAI Label proxy
+    volumes:
+      - ./servers/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      orthanc:
+        condition: service_healthy
+      monai-label:
+        condition: service_started
+      uncertainty-service:
+        condition: service_started
+    networks:
+      - medical-net
+    restart: unless-stopped
+
+  # ============================================
+  # MONAI Label - AI Segmentation Server
+  # ============================================
+  monai-label:
+    build:
+      context: ./servers/monai-label
+      dockerfile: Dockerfile
+    container_name: medical-monai
+    ports:
+      - "8000:8000"
+    volumes:
+      - monai-data:/workspace/data
+      - monai-model:/workspace/app/model
+      - ./servers/monai-label/model/pretrained_segmentation.pt:/workspace/app/model/pretrained_segmentation.pt:ro
+      - ./servers/monai-label/model/checkpoint.lock.json:/workspace/app/model/checkpoint.lock.json:ro
+      - ./evaluation/ct-spleen/data-local:/workspace/data/studies
+    networks:
+      - medical-net
+    environment:
+      - CUDA_VISIBLE_DEVICES=-1
+      - OMP_NUM_THREADS=16
+      - MC_DROPOUT_SAMPLES=16
+      - MONAI_CHECKPOINT_PATH=/workspace/app/model/pretrained_segmentation.pt
+      - MONAI_CHECKPOINT_LOCK=/workspace/app/model/checkpoint.lock.json
+    entrypoint:
+      - /bin/bash
+      - -c
+    command:
+      - |
+        set -e
+        echo "=== MONAI Label Setup (filesystem studies) ==="
+        python -c "from pathlib import Path; from lib.checkpoint import verify_checkpoint; verify_checkpoint(Path('/workspace/app/model/pretrained_segmentation.pt'), Path('/workspace/app/model/checkpoint.lock.json'))"
+        echo "Studies source: /workspace/data/studies (NIfTI files)"
+
+        exec monailabel start_server \
+          --app /workspace/app \
+          --studies /workspace/data/studies \
+          --host 0.0.0.0 \
+          --port 8000 \
+          --conf models segmentation,mcdropout_seg \
+          --conf mc_dropout_samples 16
+    restart: unless-stopped
+    depends_on: []
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/info')"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 180s
+
+  # ============================================
+  # Uncertainty Service - Worklist, Inference, Events
+  # ============================================
+  uncertainty-service:
+    build:
+      context: ./servers/uncertainty-service
+      dockerfile: Dockerfile
+    container_name: medical-uncertainty
+    ports:
+      - "58050:58050"
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      - DATABASE_CONNECT_RETRY_SECONDS=${DATABASE_CONNECT_RETRY_SECONDS:-90}
+      - DATABASE_CONNECT_RETRY_INTERVAL_SECONDS=${DATABASE_CONNECT_RETRY_INTERVAL_SECONDS:-2}
+      - MONAI_LABEL_URL=${MONAI_LABEL_URL:-http://monai-label:8000}
+      - MONAI_LABEL_TIMEOUT_SECONDS=${MONAI_LABEL_TIMEOUT_SECONDS:-7200}
+      - ORTHANC_DICOMWEB_URL=${ORTHANC_DICOMWEB_URL:-http://orthanc:8042/dicom-web}
+      - DEFAULT_CASE_CONDITION=${DEFAULT_CASE_CONDITION:-C2}
+      - UNCERTAINTY_OUTPUT_DIR=/var/lib/uncertainty-service/outputs
+      - EVALUATION_CASES_PATH=/evaluation/cases.json
+      - PUBLIC_UNCERTAINTY_SERVICE_URL=${PUBLIC_UNCERTAINTY_SERVICE_URL:-http://localhost:8043/uncertainty}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
+    volumes:
+      - uncertainty-artifacts:/var/lib/uncertainty-service/outputs
+      - ./evaluation/ct-spleen:/evaluation:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      monai-label:
+        condition: service_healthy
+    networks:
+      - medical-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:58050/health').read()"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # ============================================
+  # PostgreSQL - Annotation Storage
+  # ============================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: medical-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_INITDB_ARGS=--encoding=UTF8
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - type: bind
+        source: ./scripts/init-db.sql
+        target: /docker-entrypoint-initdb.d/init.sql
+        read_only: true
+    restart: unless-stopped
+    networks:
+      - medical-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U medical_imaging -d annotations"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ============================================
+  # Collaboration Server - Real-Time Sync
+  # ============================================
+  collaboration-server:
+    build:
+      context: ./servers/collaboration
+      dockerfile: Dockerfile
+    container_name: medical-collaboration
+    ports:
+      - "3001:3001"
+    environment:
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - NODE_ENV=${NODE_ENV}
+      - PORT=3001
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
+      - JWT_SECRET=${JWT_SECRET:-change-me-in-production}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - medical-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # ============================================
+  # Reviewer Profile Services (docker compose --profile reviewer up)
+  # ============================================
+  # Pre-computed inference volumes (shared by all reviewer services)
+  reviewer-data:
+    image: busybox:latest
+    container_name: medical-reviewer-data
+    profiles: ["reviewer"]
+    volumes:
+      - reviewer-artifacts:/artifacts
+      - reviewer-cases:/cases
+    command: >
+      sh -c '
+        echo "Reviewer data volume ready. Populate with pre-computed inferences.";
+        echo "Run: docker compose run --rm reviewer-data sh";
+        tail -f /dev/null
+      '
+    restart: "no"
+
+  # --- PostgreSQL (shared or local) ---
+  reviewer-postgres:
+    image: postgres:15-alpine
+    container_name: medical-reviewer-postgres
+    profiles: ["reviewer"]
+    # Host port 5433 to avoid conflict with medical-postgres on 5432
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-medical_imaging}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-annotations}
+      POSTGRES_INITDB_ARGS: --encoding=UTF8
+    volumes:
+      - reviewer-postgres-data:/var/lib/postgresql/data
+      - type: bind
+        source: ./scripts/init-db.sql
+        target: /docker-entrypoint-initdb.d/init.sql
+        read_only: true
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-medical_imaging} -d ${POSTGRES_DB:-annotations}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - medical-net
+
+  # --- Uncertainty Service (pre-computed mode) ---
+  reviewer-uncertainty:
+    build:
+      context: ./servers/uncertainty-service
+      dockerfile: Dockerfile
+    container_name: medical-reviewer-uncertainty
+    profiles: ["reviewer"]
+    ports:
+      - "${REVIEWER_UNCERTAINTY_PORT:-58051}:58050"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-medical_imaging}:${POSTGRES_PASSWORD}@reviewer-postgres:5432/${POSTGRES_DB:-annotations}
+      DATABASE_CONNECT_RETRY_SECONDS: "90"
+      DATABASE_CONNECT_RETRY_INTERVAL_SECONDS: "2"
+      MONAI_LABEL_URL: ""
+      MONAI_LABEL_TIMEOUT_SECONDS: "10"
+      ORTHANC_DICOMWEB_URL: ""
+      DEFAULT_CASE_CONDITION: ${DEFAULT_CASE_CONDITION:-C2}
+      UNCERTAINTY_OUTPUT_DIR: /var/lib/uncertainty-service/outputs
+      EVALUATION_CASES_PATH: /cases/cases.json
+      PUBLIC_UNCERTAINTY_SERVICE_URL: ${PUBLIC_UNCERTAINTY_URL:-http://localhost:58050}
+      ALLOWED_ORIGINS: http://localhost:3000
+      POSTGRES_USER: ${POSTGRES_USER:-medical_imaging}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_HOST: reviewer-postgres
+      POSTGRES_DB: ${POSTGRES_DB:-annotations}
+    volumes:
+      - reviewer-artifacts:/var/lib/uncertainty-service/outputs:ro
+      - reviewer-cases:/cases:ro
+    depends_on:
+      reviewer-postgres:
+        condition: service_healthy
+    networks:
+      - medical-net
+    restart: unless-stopped
+
+  # --- OHIF Viewer ---
+  reviewer-ohif:
+    image: ohif/app:latest
+    container_name: medical-reviewer-ohif
+    profiles: ["reviewer"]
+    ports:
+      - "${OHIF_PORT:-3000}:3000"
+    environment:
+      APP_CONFIG: /usr/share/nginx/html/app-config/reviewer-config.js
+      PROXY_TARGET_UNCATEGORIZED: http://reviewer-uncertainty:58050
+      REVIEWER_ID: ${REVIEWER_ID}
+      CONDITION: ${CONDITION}
+    volumes:
+      - type: bind
+        source: ./ohif-viewer/platform/app/public/config/reviewer-config.js
+        target: /usr/share/nginx/html/app-config/reviewer-config.js
+        read_only: true
+    depends_on:
+      - reviewer-uncertainty
+    networks:
+      - medical-net
+    restart: unless-stopped
+
+# ============================================
+# Named Volumes for Data Persistence
+# ============================================
+volumes:
+  orthanc-data:
+    driver: local
+    name: medical-orthanc-data
+  monai-data:
+    driver: local
+    name: medical-monai-data
+  monai-model:
+    driver: local
+    name: medical-monai-model
+  uncertainty-artifacts:
+    driver: local
+    name: medical-uncertainty-artifacts
+  postgres-data:
+    driver: local
+    name: medical-postgres-data
+  reviewer-artifacts:
+    name: medical-reviewer-artifacts
+  reviewer-cases:
+    name: medical-reviewer-cases
+  reviewer-postgres-data:
+    name: medical-reviewer-postgres-data
+
+# ============================================
+# Custom Bridge Network
+# ============================================
+networks:
+  medical-net:
+    driver: bridge
+    name: medical-imaging-network
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+
+

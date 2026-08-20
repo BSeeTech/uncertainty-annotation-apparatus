@@ -1,0 +1,27 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local data and weights — mount these as volumes at runtime.
+data/*
+!data/.gitkeep
+model/*
+!model/.gitkeep
+
+# Test scratch
+smoke_out/
+*.nii.gz
+*.zip
+
+# Editor/IDE
+.vscode/
+.idea/
+*.swp
+
+# Misc
+.git/
+.gitignore

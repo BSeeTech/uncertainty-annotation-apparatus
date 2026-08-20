@@ -1,0 +1,6 @@
+| Feature | Description |
+| Real-time Viewport Sync | Image navigation, zoom, pan, window/level, rotation, flip, and invert |
+| Annotation Sharing | Create, modify, and delete annotations visible to all participants |
+| Session Management | Create, join, and leave collaboration sessions |
+| Role-based Control | Presenter controls viewport; followers sync automatically |
+| Persistent Storage | Annotations saved to PostgreSQL database |
