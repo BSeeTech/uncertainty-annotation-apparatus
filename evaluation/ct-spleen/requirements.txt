@@ -8,7 +8,12 @@
 # The Docker stack (uncertainty-service, MONAI Label) has its own dependencies
 # and does NOT need this file — it is only for running the evaluator on the
 # host against a running stack.
+#
+# pydicom + requests are also used by scripts/prepare-msd-for-orthanc.py
+# (NIfTI -> DICOM conversion and Orthanc upload).
 
 numpy>=1.24
 scipy>=1.10
 nibabel>=5.0
+pydicom>=2.4
+requests>=2.31

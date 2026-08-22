@@ -54,7 +54,8 @@ docker compose up -d
 # 4. Download + verify the MSD dataset (~1.5 GB, live progress, resumable)
 python evaluation/ct-spleen/install_dataset.py
 
-# 5. Build the filesystem studies source and let MONAI Label rescan it
+# 5. Build the filesystem studies source and let MONAI Label rescan it.
+#    MONAI Label infers from these NIfTI files by msd_case name.
 mkdir -p evaluation/ct-spleen/data-local/labels/final
 copy evaluation\ct-spleen\data\imagesTr\spleen_10.nii.gz evaluation\ct-spleen\data-local\
 copy evaluation\ct-spleen\data\imagesTr\spleen_19.nii.gz evaluation\ct-spleen\data-local\
@@ -66,9 +67,18 @@ copy evaluation\ct-spleen\data\labelsTr\spleen_19.nii.gz evaluation\ct-spleen\da
 copy evaluation\ct-spleen\data\labelsTr\spleen_29.nii.gz evaluation\ct-spleen\data-local\labels\final\
 docker compose restart monai-label
 
-# 6. Register the five MSD cases with the uncertainty service (NIfTI cases are
-#    NOT in Orthanc, so /cases/sync cannot find them — register each explicitly).
-#    Use the study_uid as case_id (the evaluator derives case_id from study_uid).
+# 6. Convert the 5 MSD NIfTI volumes to DICOM with the EXACT study/series UIDs
+#    from cases.json, and upload them to Orthanc. This step is REQUIRED: the
+#    generation script validates each series in Orthanc before inference.
+#    Requires plastimatch (https://plastimatch.org) and pydicom on the host.
+pip install pydicom requests          # host python, one-time
+python scripts/prepare-msd-for-orthanc.py \
+  --cases evaluation/ct-spleen/cases.json \
+  --data evaluation/ct-spleen/data \
+  --orthanc http://localhost:8042
+
+# 7. Register the five MSD cases with the uncertainty service. Use the
+#    study_uid as case_id (the evaluator derives case_id from study_uid).
 curl -X POST http://localhost:58050/cases \
   -H "Content-Type: application/json" \
   -d '{"case_id":"1.2.826.0.1.3680043.8.274.1.1.248825330.63900.8824652402.697","patient_id":"patient001","study_uid":"1.2.826.0.1.3680043.8.274.1.1.248825330.63900.8824652402.697","series_uid":"1.2.826.0.1.3680043.8.274.1.1.784017185.94518.4538589876.211","condition":"C2"}'
@@ -85,15 +95,17 @@ curl -X POST http://localhost:58050/cases \
   -H "Content-Type: application/json" \
   -d '{"case_id":"1.2.826.0.1.3680043.8.274.1.1.521426503.86857.9032450883.677","patient_id":"patient005","study_uid":"1.2.826.0.1.3680043.8.274.1.1.521426503.86857.9032450883.677","series_uid":"1.2.826.0.1.3680043.8.274.1.1.956292836.56138.4474170934.471","condition":"C2"}'
 
-# 7. Pre-compute the C2 inferences (MC Dropout, T=16). Each case takes several
-#    minutes on CPU; run this once and let it finish.
-UNCERTAINTY_URL=http://localhost:58050 \
-  ./scripts/precompute-all.sh \
-  --cases evaluation/ct-spleen/cases.json \
-  --output /tmp/reviewer-artifacts
+# 8. Run the administrative precompute to GENERATE the C2 inferences
+#    (MC Dropout, T=16). Each case takes ~3-5 minutes on CPU; run inside the
+#    uncertainty-service container so it reaches the DB and MONAI Label.
+#    To follow progress: docker exec medical-uncertainty cat /tmp/precompute.json
+docker exec medical-uncertainty python /app/scripts/precompute_cases.py \
+  --cases /evaluation/cases.json \
+  --condition C2 \
+  --report /tmp/precompute.json
 
-# 8. Generate the report
-pip install -r evaluation/ct-spleen/requirements.txt   # one-time
+# 9. Generate the report
+pip install -r evaluation/ct-spleen/requirements.txt   # host python, one-time
 python evaluation/ct-spleen/run_evaluation.py `
   --cases evaluation/ct-spleen/cases.json `
   --references evaluation/ct-spleen/data `
@@ -103,6 +115,10 @@ python evaluation/ct-spleen/render_report.py `
   --input evaluation/ct-spleen/results/experimental-results.json `
   --output evaluation/ct-spleen/results/experimental-report.md
 ```
+
+> **Windows note for steps 5–6.** The `copy` commands and the `--data` path are
+> PowerShell/bash compatible from the repo root. If `plastimatch` is not on
+> PATH, pass `--plastimatch "C:\Program Files\Plastimatch\bin\plastimatch.exe"`.
 
 **Expected result.** The regenerated report should show the same ballpark as the
 committed reference report (`evaluation/ct-spleen/results/experimental-report.md`):
@@ -117,11 +133,13 @@ normal; large deviations (e.g. Dice < 0.8) indicate a setup problem.
 > - The `cases.json` used by the evaluation is `evaluation/ct-spleen/cases.json`
 >   (5 MSD CT cases + 5 DET detection cases). Only the 5 MSD cases are used by
 >   the evaluator; the DET rows are for a separate detection workflow.
-> - During step 7 you will see expected warnings: C3–C5 inference returns
->   HTTP 400 (only C1/C2 are wired), and the DET cases return HTTP 404 (they are
->   not registered with the uncertainty service). **These are normal** — the C2
->   artifacts for patient001–005 are what the evaluator consumes. The script
->   exits 0 regardless; only "cannot reach uncertainty service" is fatal.
+> - Step 8 (`precompute_cases.py`) runs each case serially; expect ~3–5 minutes
+>   per case on CPU (MC Dropout T=16). The report file `/tmp/precompute.json`
+>   (inside the container) shows per-case status. A case already generated is
+>   reported `skipped`; use `--replace` to force regeneration.
+> - If the generation fails with "DICOM series ... not found in Orthanc", the
+>   DICOM conversion (step 6) did not set the fixed UIDs — check that
+>   `prepare-msd-for-orthanc.py` completed without error and re-run it.
 > - The reported results are for **C2 only** (MC Dropout, T=16). Running the
 >   evaluator against other conditions is not supported by the current code.
 
@@ -203,12 +221,21 @@ evaluation/ct-spleen/data-local/
         └── spleen_29.nii.gz
 ```
 
-### Running with filesystem studies (no Orthanc needed)
+### Running with filesystem studies
 
 The `docker-compose.yml` binds `./evaluation/ct-spleen/data-local` to `/workspace/data/studies` in the
 `monai-label` container and passes `--studies /workspace/data/studies` instead of the DICOMweb URL.
-MONAI Label auto-discovers the `.nii.gz` files via `LocalDatastore` — no DICOM conversion or Orthanc
-dependency required.
+MONAI Label auto-discovers the `.nii.gz` files via `LocalDatastore` — this is how MONAI Label obtains
+the image volumes for inference.
+
+> **Important:** filesystem studies are sufficient for MONAI inference, but **the
+> replication pipeline also requires the same cases in Orthanc as DICOM** under the
+> fixed UIDs from `cases.json` — the generation script
+> (`servers/uncertainty-service/scripts/precompute_cases.py`) validates each series
+> in Orthanc before running inference. Use the bundled
+> `scripts/prepare-msd-for-orthanc.py` helper to convert + upload (step 6 of the
+> replication sequence above). The MSD NIfTI files themselves cannot be uploaded
+> to Orthanc directly (Orthanc only accepts DICOM).
 
 **After adding or changing files under `data-local/`, restart the container so
 the datastore rescans the directory:**

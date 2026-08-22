@@ -140,16 +140,32 @@ yarn dev
 
 For distributed multi-site review workflows where reviewers do not have GPU access:
 
-### 1. Pre-compute all inferences (on the GPU-equipped host)
+### 1. Generate the inference artifacts (on the GPU-equipped host)
+
+Run the administrative precompute inside the uncertainty-service container. It
+runs MONAI Label inference for every configured case × C1/C2 condition and
+publishes validated artifacts (segmentation, uncertainty, foreground probability):
 
 ```bash
-UNCERTAINTY_URL=http://your-server:58050 \
-  ./scripts/precompute-all.sh \
-  --cases evaluation/ct-spleen/cases.json \
-  --output /tmp/reviewer-artifacts
+# Ensure cases are registered first (see the replication sequence in
+# evaluation/ct-spleen/README.md) — generation validates each series in Orthanc.
+docker exec medical-uncertainty python /app/scripts/precompute_cases.py \
+  --cases /evaluation/cases.json \
+  --condition C2 \
+  --report /tmp/precompute.json
 ```
 
-This generates inference artifacts for every (case, condition) combination and produces a `case-allocation.json` with counterbalanced assignments for up to 50 reviewers.
+Then copy the artifacts out of the container for distribution:
+
+```bash
+# The outputs live in the uncertainty-service volume. With the main stack
+# running, they are already on the host volume; locate it via:
+docker volume inspect medical-uncertainty-artifacts --format '{{.Mountpoint}}'
+```
+
+(For the older `scripts/precompute-all.sh`: it does **not** generate — it only
+verifies that cached results exist for the reviewer profile and returns HTTP 409
+when a generation is missing. Use `precompute_cases.py` to generate.)
 
 ### 2. Copy artifacts to the reviewer machine
 

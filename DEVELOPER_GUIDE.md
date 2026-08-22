@@ -244,9 +244,12 @@ Computes pairwise Dice similarity for the same case in the same condition across
 
 ### Pre-computation
 ```bash
-./scripts/precompute-all.sh
+# Generate all C2 inference artifacts (see evaluation/ct-spleen/README.md for
+# the full sequence, including case registration and DICOM conversion).
+docker exec medical-uncertainty python /app/scripts/precompute_cases.py \
+  --cases /evaluation/cases.json --condition C2 --report /tmp/precompute.json
 ```
-Generates all case×condition inference artifacts offline. Required before deploying the reviewer Docker profile.
+Generates all case×condition inference artifacts offline. Required before deploying the reviewer Docker profile. (`scripts/precompute-all.sh` only verifies cached results — it returns HTTP 409 when a generation is missing.)
 
 ## Testing
 

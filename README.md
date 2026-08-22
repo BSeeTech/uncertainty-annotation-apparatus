@@ -156,7 +156,7 @@ uncertainty-annotation-apparatus/
 │   ├── orthanc/                    # PACS configuration
 │   └── nginx/                      # Reverse proxy configuration
 ├── scripts/
-│   ├── precompute-all.sh           # Batch inference pre-computation for reviewers
+│   ├── precompute-all.sh           # Verify cached reviewer artifacts (does not generate)
 │   ├── analyze_reversions.py       # Edit reversion & trust-trajectory analysis
 │   ├── analyze_interrater.py       # Pairwise inter-rater agreement analysis
 │   ├── init-db.sql                 # Database initialization
@@ -239,8 +239,10 @@ condition.
 For multi-site review workflows:
 
 ```bash
-# 1. Pre-compute all inferences (GPU required)
-./scripts/precompute-all.sh
+# 1. Generate all inference artifacts (GPU recommended — MC Dropout T=16)
+#    Cases must be registered first (see evaluation/ct-spleen/README.md).
+docker exec medical-uncertainty python /app/scripts/precompute_cases.py \
+  --cases /evaluation/cases.json --condition C2 --report /tmp/precompute.json
 
 # 2. Deploy reviewer stack (no GPU needed)
 docker compose --profile reviewer up -d
@@ -248,6 +250,10 @@ docker compose --profile reviewer up -d
 # 3. Each reviewer opens their session URL
 # http://localhost:3000/uncertainty-review?reviewer=R01&condition=C2
 ```
+
+> **Note:** `scripts/precompute-all.sh` does not generate artifacts — it only
+> verifies that cached results exist (HTTP 409 otherwise). Use
+> `precompute_cases.py` (above) to generate.
 
 See [INSTALL.md#reviewer-deployment](INSTALL.md#reviewer-deployment) for details.
 

@@ -234,7 +234,11 @@ def main() -> int:
             service_url=args.service,
             references_root=args.references,
         )
+        # Evaluate only the MSD cases: the report scopes are defined for the
+        # five fixed patient001-005 cases, and non-MSD rows (e.g. DET) have no
+        # generation to evaluate.
         for case in load_case_mapping(args.cases)
+        if case.get("msd_case")
     ]
     report = json_safe(build_experimental_report(rows))
     args.output.parent.mkdir(parents=True, exist_ok=True)
