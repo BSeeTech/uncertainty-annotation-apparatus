@@ -18,6 +18,10 @@ EXPECTED_MSD_CASES = (
 )
 EXPECTED_SPLITS = ("imagesTr", "imagesTr", "imagesTr", "imagesTs", "imagesTs")
 EXPECTED_REFERENCES = (True, True, True, False, False)
+# Additional non-MSD cases allowed after the five fixed MSD cases (e.g. the
+# DET detection cases). They have no reference masks and no MSD source file,
+# so they are excluded from the strict MSD-subset checks below.
+EXPECTED_EXTRA_PATIENT_PREFIX = "DET"
 
 
 def load_case_mapping(path: Path) -> list[dict[str, Any]]:
@@ -29,30 +33,49 @@ def load_case_mapping(path: Path) -> list[dict[str, Any]]:
 
 
 def validate_case_mapping(cases: list[dict[str, Any]]) -> None:
-    if len(cases) != 5:
-        raise ValueError("case mapping must contain exactly five cases")
-    patients = [case.get("patient_id") for case in cases]
-    msd_cases = [case.get("msd_case") for case in cases]
+    if len(cases) < 5:
+        raise ValueError("case mapping must contain at least the five MSD cases")
+    # The first five entries are the fixed MSD evaluation mapping; any further
+    # entries are additional cases (e.g. DET) that carry no MSD reference.
+    msd_cases = cases[:5]
+    extra_cases = cases[5:]
+    patients = [case.get("patient_id") for case in msd_cases]
+    msd_cases_names = [case.get("msd_case") for case in msd_cases]
     studies = [case.get("study_uid") for case in cases]
     series = [case.get("series_uid") for case in cases]
     modalities = [case.get("modality") for case in cases]
-    splits = [case.get("source_split") for case in cases]
-    references = [case.get("reference_available") for case in cases]
+    splits = [case.get("source_split") for case in msd_cases]
+    references = [case.get("reference_available") for case in msd_cases]
 
     if tuple(patients) != EXPECTED_PATIENTS:
         raise ValueError(f"unexpected patient order: {patients}")
-    if tuple(msd_cases) != EXPECTED_MSD_CASES:
-        raise ValueError(f"unexpected MSD case order: {msd_cases}")
+    if tuple(msd_cases_names) != EXPECTED_MSD_CASES:
+        raise ValueError(f"unexpected MSD case order: {msd_cases_names}")
     if tuple(splits) != EXPECTED_SPLITS:
         raise ValueError(f"unexpected MSD source splits: {splits}")
     if tuple(references) != EXPECTED_REFERENCES:
         raise ValueError(f"unexpected reference availability: {references}")
-    if len(set(studies)) != 5 or any(not value for value in studies):
+    if len(set(studies)) != len(studies) or any(not value for value in studies):
         raise ValueError("study UIDs must be present and unique")
-    if len(set(series)) != 5 or any(not value for value in series):
+    if len(set(series)) != len(series) or any(not value for value in series):
         raise ValueError("series UIDs must be present and unique")
     if any(value != "CT" for value in modalities):
         raise ValueError("all evaluation mappings must be CT")
+    # Extra cases must be distinct and non-MSD (no MSD case name, no reference).
+    for case in extra_cases:
+        if case.get("msd_case") is not None:
+            raise ValueError(
+                f"extra case {case.get('patient_id')} must not set msd_case"
+            )
+        if case.get("reference_available") is not False:
+            raise ValueError(
+                f"extra case {case.get('patient_id')} must set "
+                "reference_available=false"
+            )
+        if case.get("source_split") not in (None, "imagesDET"):
+            raise ValueError(
+                f"extra case {case.get('patient_id')} must use imagesDET"
+            )
 
 
 def compare_nifti_sources(

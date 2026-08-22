@@ -1,0 +1,14 @@
+# Dependencies for the CT spleen evaluation pipeline
+# (evaluation/ct-spleen/run_evaluation.py, render_report.py, and the
+#  verification/mapping helpers).
+#
+# Install with:
+#   pip install -r evaluation/ct-spleen/requirements.txt
+#
+# The Docker stack (uncertainty-service, MONAI Label) has its own dependencies
+# and does NOT need this file — it is only for running the evaluator on the
+# host against a running stack.
+
+numpy>=1.24
+scipy>=1.10
+nibabel>=5.0

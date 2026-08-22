@@ -67,6 +67,47 @@ EXPECTED_CASES = [
     ),
 ]
 
+# Additional non-MSD cases in cases.json (detection cases, no reference mask,
+# no MSD source file). Kept separate from EXPECTED_CASES so the archive
+# fixtures above stay MSD-only.
+EXPECTED_EXTRA_CASES = [
+    (
+        "DET0000101_avg",
+        "imagesDET",
+        False,
+        "1.2.826.0.1.3680043.8.274.1.1.8247060327.75519.4237086139.796",
+        "1.2.826.0.1.3680043.8.274.1.1.1549403409.92949.9928720754.350",
+    ),
+    (
+        "DET0000201_avg",
+        "imagesDET",
+        False,
+        "1.2.826.0.1.3680043.8.274.1.1.8274164626.27981.9346422741.638",
+        "1.2.826.0.1.3680043.8.274.1.1.2202653464.10265.7141311830.759",
+    ),
+    (
+        "DET0000801_avg",
+        "imagesDET",
+        False,
+        "1.2.826.0.1.3680043.8.274.1.1.8040071758.33333.5872423995.676",
+        "1.2.826.0.1.3680043.8.274.1.1.4147500540.47824.2955205109.117",
+    ),
+    (
+        "DET0001101_avg",
+        "imagesDET",
+        False,
+        "1.2.826.0.1.3680043.8.274.1.1.7013080792.45579.4320786143.942",
+        "1.2.826.0.1.3680043.8.274.1.1.8117292811.77179.4669181639.866",
+    ),
+    (
+        "DET0001201_avg",
+        "imagesDET",
+        False,
+        "1.2.826.0.1.3680043.8.274.1.1.2511641213.49508.5941571327.745",
+        "1.2.826.0.1.3680043.8.274.1.1.2951163338.77668.6902836753.453",
+    ),
+]
+
 
 def fixture_archive(path: Path) -> None:
     with tarfile.open(path, "w") as archive:
@@ -120,9 +161,22 @@ class DatasetProvenanceTest(unittest.TestCase):
                     row["study_uid"],
                     row["series_uid"],
                 )
-                for row in cases
+                for row in cases[:5]
             ],
             EXPECTED_CASES,
+        )
+        self.assertEqual(
+            [
+                (
+                    row["patient_id"],
+                    row["source_split"],
+                    row["reference_available"],
+                    row["study_uid"],
+                    row["series_uid"],
+                )
+                for row in cases[5:]
+            ],
+            EXPECTED_EXTRA_CASES,
         )
         validate_case_mapping(cases)
 

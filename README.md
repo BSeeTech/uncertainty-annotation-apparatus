@@ -174,11 +174,20 @@ uncertainty-annotation-apparatus/
 └── scripts/                        # Ops and analysis scripts (PowerShell, bash)
 ```
 
-> **Note on evaluation data:** the MSD Task09 Spleen volumes are not bundled
-> with the repository. Run `python evaluation/ct-spleen/install_dataset.py`
-> from the repo root to download and verify them (~1.5 GB, with live progress
-> and automatic resume — see
-> [evaluation/ct-spleen/README.md](evaluation/ct-spleen/README.md#getting-the-dataset)).
+> **⚠️ Warning — test data is a large download, not bundled.**
+> The MSD Task09 Spleen volumes (~1.5 GB) are **not in this repository** and are
+> **not required to start or use the platform**. They are only needed if you want
+> to **replicate the evaluation results**.
+>
+> - Run `python evaluation/ct-spleen/install_dataset.py` from the repo root to
+>   download and verify them (live progress, automatic resume on interruption).
+> - On a slow connection this can take **30+ minutes** — the installer is working
+>   even when the terminal looks idle; watch the progress line.
+> - The data is **NIfTI (.nii.gz)**, not DICOM: it feeds MONAI Label's filesystem
+>   datastore and the evaluation pipeline. It is **not** directly viewable in the
+>   OHIF viewer at `localhost:3000` unless you first convert NIfTI → DICOM.
+> - See [evaluation/ct-spleen/README.md](evaluation/ct-spleen/README.md) for the
+>   full replication sequence.
 
 ## 📚 Documentation
 

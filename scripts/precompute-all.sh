@@ -40,7 +40,7 @@ import json
 with open('$CASES_JSON') as f:
     cases = json.load(f)
 for c in cases:
-    print(c['case_id'])
+    print(c.get('case_id') or c['study_uid'])
 ")
 
 TOTAL=0
