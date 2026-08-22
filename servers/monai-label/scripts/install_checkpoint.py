@@ -78,16 +78,21 @@ def install(checkpoint_path: Path, lock_path: Path) -> CheckpointLock:
 
 
 def parse_args() -> argparse.Namespace:
+    # Anchor defaults to the script's directory so the documented invocation
+    # "python servers/monai-label/scripts/install_checkpoint.py" from the repo
+    # root writes to servers/monai-label/model/, which is what docker-compose
+    # bind-mounts — not to ./model/ relative to the caller's CWD.
+    script_dir = Path(__file__).resolve().parent.parent  # servers/monai-label
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--checkpoint",
         type=Path,
-        default=Path("model/pretrained_segmentation.pt"),
+        default=script_dir / "model" / "pretrained_segmentation.pt",
     )
     parser.add_argument(
         "--lock",
         type=Path,
-        default=Path("model/checkpoint.lock.json"),
+        default=script_dir / "model" / "checkpoint.lock.json",
     )
     return parser.parse_args()
 

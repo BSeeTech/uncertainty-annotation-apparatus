@@ -102,11 +102,19 @@ cd uncertainty-annotation-apparatus
 cp .env.example .env
 # Edit .env to set POSTGRES_PASSWORD
 
+# Provision the MONAI Label checkpoint (downloads the official spleen UNet)
+python servers/monai-label/scripts/install_checkpoint.py
+
 # Start all services
 docker compose up -d
 
 # Start OHIF Viewer (in a separate terminal)
 cd ohif-viewer
+
+# Configure the viewer (optional but recommended): the stock fallback already
+# points at the local stack, but this makes it explicit.
+cd platform/app && cp .env.example .env && cd ../..
+
 yarn install
 yarn dev
 ```

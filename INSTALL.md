@@ -68,6 +68,11 @@ docker compose up -d
 
 # 5. Start the OHIF viewer
 cd ohif-viewer
+
+# Configure the viewer (optional but recommended): the stock fallback already
+# points at the local stack, but this makes it explicit.
+cd platform/app && cp .env.example .env && cd ../..
+
 yarn install
 yarn dev
 
