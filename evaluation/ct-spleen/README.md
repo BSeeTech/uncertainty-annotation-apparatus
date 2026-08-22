@@ -34,6 +34,17 @@ python evaluation/ct-spleen/render_report.py `
 
 ## Replicating the reported results (full sequence)
 
+**The quick way:** run the one-command loader from the repository root — it
+performs steps 2–8 below automatically with plain-language progress messages:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/setup-demo-data.ps1
+```
+
+It is safe to re-run (completed steps are skipped, the download resumes).
+Non-technical testers can stop here and use the browser; the manual steps below
+are for those who want to see exactly what happens.
+
 This is the end-to-end procedure from a fresh clone to a regenerated report.
 Steps 1–4 are the same as the platform quick-start; only steps 5–8 are specific
 to replication. **The whole sequence assumes Docker Desktop is running.**

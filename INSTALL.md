@@ -80,6 +80,17 @@ yarn dev
 # http://localhost:3000
 ```
 
+**To load example data** (the five spleen cases used in the evaluation) run the
+one-command loader from the repository root — it downloads, converts, uploads,
+and precomputes everything with plain-language progress:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/setup-demo-data.ps1
+```
+
+Non-technical testers (e.g. radiologists) only need this command plus the
+browser; see [GETTING-STARTED.md](GETTING-STARTED.md).
+
 > **Note:** The pretrained checkpoint (`pretrained_segmentation.pt`) is downloaded
 > by `install_checkpoint.py` and verified against a SHA-256 lock file. It is not
 > bundled in the repository.

@@ -56,9 +56,19 @@ tests/
 
 ## Testing
 
+The tests import `app.main`, which requires `POSTGRES_PASSWORD` to be set (the
+unit tests never touch a real database — any non-empty value works):
+
 ```bash
+POSTGRES_PASSWORD=test python -m pytest -v --tb=short
+POSTGRES_PASSWORD=test python -m pytest --cov=app --cov-report=term-missing
+```
+
+On Windows PowerShell:
+
+```powershell
+$env:POSTGRES_PASSWORD = "test"
 python -m pytest -v --tb=short
-python -m pytest --cov=app --cov-report=term-missing
 ```
 
 ## Configuration

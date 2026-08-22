@@ -129,6 +129,20 @@ yarn dev
 | Uncertainty Service | http://localhost:58050/docs | Worklist, inference orchestration, events |
 | Collaboration API | http://localhost:3001 | REST API & WebSocket |
 
+### Loading example data (for testers, including non-technical ones)
+
+Once the stack is up, load the five example spleen cases with **one command**
+(downloads ~1.5 GB on first run, resumable, prints plain-language progress):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/setup-demo-data.ps1
+```
+
+When it finishes with a green "Demo data is ready!", open
+`http://localhost:3000/uncertainty-review?reviewer=R01&condition=C2`.
+Radiologists and other non-technical testers only need this step plus the
+browser — see [GETTING-STARTED.md](GETTING-STARTED.md) for a jargon-free walkthrough.
+
 ### Entering a Review Session
 
 ```

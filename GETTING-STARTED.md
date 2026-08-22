@@ -11,6 +11,41 @@ You now have a fully functional medical imaging annotation platform with:
 
 ---
 
+## 👩‍⚕️ For radiologists and non-technical testers
+
+You do **not** need to understand any of the commands in this document. Ask the
+person who installed the platform to run **one script** that prepares everything
+for you, then you only use the browser:
+
+```
+powershell -ExecutionPolicy Bypass -File scripts/setup-demo-data.ps1
+```
+
+That script downloads the example data (about 1.5 GB — this is the only step
+that takes time, up to 30+ minutes on a slow connection, and it resumes if
+interrupted), converts it, and prepares the AI model. When it finishes it prints
+a green "Demo data is ready!" message.
+
+Then, in your browser:
+
+| What you want to do | Where to go |
+|---------------------|-------------|
+| **See the review worklist** | http://localhost:3000/uncertainty-review?reviewer=R01&condition=C2 |
+| **Browse images like in a PACS** | http://localhost:3000 |
+| **Look at the PACS storage** | http://localhost:8042/app/explorer.html |
+
+**If something doesn't load:** the most common cause is that Docker Desktop is
+not running. Look for the Docker icon (a whale 🐳) in your system tray
+(bottom-right of the screen); if it's not there or not showing "Engine running",
+start it, wait for it to become ready, then refresh the browser page.
+
+If you were given this platform **without the example data already prepared**
+(the script above was never run), the AI review screens will show an empty
+worklist. That is expected — run the script (or ask the installer to run it)
+and the five example cases will appear.
+
+---
+
 ## Quick Start Commands
 
 ### Check All Services

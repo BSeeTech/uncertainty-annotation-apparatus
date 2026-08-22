@@ -869,6 +869,23 @@ async def health() -> dict[str, Any]:
     }
 
 
+def msd_experiment_ready(
+    configuration_error: str | None,
+    msd_status: list[dict[str, Any]],
+) -> bool:
+    """True when the five fixed MSD cases all have valid C2 generations.
+
+    Extra configured cases (e.g. DET detection cases, which have no msd_case
+    and no C2 generation) must not block readiness of the checkpoint
+    experiment.
+    """
+    return (
+        configuration_error is None
+        and len(msd_status) == 5
+        and all(row["c2_generation_valid"] for row in msd_status)
+    )
+
+
 @app.get("/health/ready")
 async def readiness() -> dict[str, Any]:
     pool = await get_pool()
@@ -899,15 +916,19 @@ async def readiness() -> dict[str, Any]:
             {
                 "case_id": case_id,
                 "patient_id": case.get("patient_id"),
+                "msd_case": case.get("msd_case"),
                 "c2_generation_valid": valid,
                 "error": error,
             }
         )
 
-    experiment_ready = (
-        configuration_error is None
-        and len(case_status) == 5
-        and all(row["c2_generation_valid"] for row in case_status)
+    # The experiment is defined by the five fixed MSD cases (patient001-005);
+    # extra configured cases (e.g. DET detection cases) are not part of the
+    # checkpoint-experiment readiness gate.
+    msd_status = [row for row in case_status if row["msd_case"]]
+    experiment_ready = msd_experiment_ready(
+        configuration_error,
+        msd_status,
     )
     return {
         "status": "healthy",
