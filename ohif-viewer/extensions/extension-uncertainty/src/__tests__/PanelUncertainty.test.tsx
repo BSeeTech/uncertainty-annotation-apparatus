@@ -122,6 +122,15 @@ describe('PanelUncertainty controls', () => {
       Simulate.change(opacity);
     });
     expect(service.setHeatmapOpacity).toHaveBeenCalledWith(0.25);
+
+    act(() => {
+      (host.querySelector('[data-testid="heatmap-opacity-0"]') as HTMLButtonElement).click();
+      (host.querySelector('[data-testid="heatmap-opacity-50"]') as HTMLButtonElement).click();
+      (host.querySelector('[data-testid="heatmap-opacity-100"]') as HTMLButtonElement).click();
+    });
+    expect(service.setHeatmapOpacity).toHaveBeenCalledWith(0);
+    expect(service.setHeatmapOpacity).toHaveBeenCalledWith(0.5);
+    expect(service.setHeatmapOpacity).toHaveBeenCalledWith(1);
   });
 
   it('shows authoritative checkpoint provenance and T=16', () => {

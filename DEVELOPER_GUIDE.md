@@ -255,12 +255,29 @@ Generates all case×condition inference artifacts offline. Required before deplo
 
 ### Server-Side Tests
 
-Uncertainty Service (15 test files, 106 test functions):
+The uncertainty service requires database configuration at import time. The
+least surprising test path is inside the running container, which already has
+the Compose environment:
+
+```bash
+docker compose exec uncertainty-service pytest -q
+```
+
+The application and tests use the repository's evaluation-only password when
+neither `DATABASE_URL` nor `POSTGRES_PASSWORD` is set.
+
+Uncertainty Service (current verified snapshot: 111 tests):
 ```bash
 cd servers/uncertainty-service
-python -m pytest -v              # All tests
+# PowerShell host run
+$env:POSTGRES_PASSWORD = "uaa-evaluation-only"
+python -m pytest -v
+
+# Bash host run
+POSTGRES_PASSWORD=uaa-evaluation-only python -m pytest -v
+
 python -m pytest tests/test_scoring.py  # Single file
-python -m pytest -k "calibration" # By keyword
+python -m pytest -k "calibration"      # By keyword
 ```
 
 MONAI Label tests:
@@ -351,7 +368,7 @@ CREATE TABLE events (
 
 | Issue | Cause | Fix |
 |-------|-------|-----|
-| `POSTGRES_PASSWORD must be set` | Missing env var | Set `POSTGRES_PASSWORD` in `.env` |
+| PostgreSQL authentication fails | Existing volume was initialized with different credentials | Use its original password or recreate disposable evaluation volumes |
 | MONAI Label cannot connect to Orthanc | Startup race | MONAI Label has a 20s sleep before connecting |
 | Heatmap not visible in C2 | Volume actor not initialised | Check browser console for `heatmapError` |
 | Events not logged | sendBeacon blocked by CORS | Verify `ALLOWED_ORIGINS` includes the OHIF origin |
@@ -370,7 +387,7 @@ export LOG_LEVEL=DEBUG
 ### Health Checks
 ```bash
 # Uncertainty service
-curl http://localhost:58050/health | python -m json.tool
+curl http://localhost:8043/uncertainty/health | python -m json.tool
 
 # Check database directly
 docker exec medical-postgres psql -U medical_imaging -d annotations \

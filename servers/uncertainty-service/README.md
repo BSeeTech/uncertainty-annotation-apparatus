@@ -56,18 +56,17 @@ tests/
 
 ## Testing
 
-The tests import `app.main`, which requires `POSTGRES_PASSWORD` to be set (the
-unit tests never touch a real database — any non-empty value works):
+The tests use the evaluation-only database default and never touch a real
+database, so no credential setup is required:
 
 ```bash
-POSTGRES_PASSWORD=test python -m pytest -v --tb=short
-POSTGRES_PASSWORD=test python -m pytest --cov=app --cov-report=term-missing
+python -m pytest -v --tb=short
+python -m pytest --cov=app --cov-report=term-missing
 ```
 
 On Windows PowerShell:
 
 ```powershell
-$env:POSTGRES_PASSWORD = "test"
 python -m pytest -v --tb=short
 ```
 
@@ -78,13 +77,13 @@ All configuration is via environment variables (see `app/main.py:32-64`):
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `DATABASE_URL` | *(required)* | PostgreSQL connection string |
-| `POSTGRES_PASSWORD` | *(required when DATABASE_URL unset)* | DB password |
+| `POSTGRES_PASSWORD` | `uaa-evaluation-only` | Evaluation-only DB password |
 | `MONAI_LABEL_URL` | `http://monai-label:8000` | MONAI Label address |
 | `ORTHANC_DICOMWEB_URL` | `http://orthanc:8042/dicom-web` | Orthanc DICOMweb |
 | `DEFAULT_CASE_CONDITION` | `C2` | Default evaluation condition |
 | `ALLOWED_ORIGINS` | `http://localhost:3000` | CORS origins |
 | `UNCERTAINTY_OUTPUT_DIR` | `/tmp/uncertainty-service/outputs` | Output directory |
-| `PUBLIC_UNCERTAINTY_SERVICE_URL` | `http://localhost:58050` | Public-facing URL |
+| `PUBLIC_UNCERTAINTY_SERVICE_URL` | `http://localhost:8043/uncertainty` | Public-facing URL |
 
 ## Security Notes
 

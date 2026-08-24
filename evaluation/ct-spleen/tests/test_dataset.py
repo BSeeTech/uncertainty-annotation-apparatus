@@ -14,9 +14,11 @@ sys.path.insert(0, str(MODULE_ROOT))
 
 from install_dataset import (  # noqa: E402
     MSD_SPLEEN_URL,
+    SELECTED_FILES,
     _adopt_existing_partial,
     install_from_archive,
     read_dataset_lock,
+    verify_installed_dataset,
 )
 from verify_orthanc_mapping import (  # noqa: E402
     load_case_mapping,
@@ -335,6 +337,41 @@ class DatasetProvenanceTest(unittest.TestCase):
 
             with self.assertRaises(ValueError):
                 read_dataset_lock(lock_path)
+
+    def test_completed_install_is_verified_without_an_archive(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            archive = root / "Task09_Spleen.tar"
+            output = root / "data"
+            lock_path = root / "dataset.lock.json"
+            fixture_archive(archive)
+            # Bootstrap a committed-style expected lock for this fixture.
+            members = {}
+            with tarfile.open(archive) as bundle:
+                for member in bundle.getmembers():
+                    if not member.isfile():
+                        continue
+                    relative = "/".join(member.name.replace("\\", "/").split("/")[-2:])
+                    if relative not in SELECTED_FILES:
+                        continue
+                    payload = bundle.extractfile(member).read()
+                    members[relative] = {
+                        "sha256": hashlib.sha256(payload).hexdigest(),
+                        "size_bytes": len(payload),
+                    }
+            lock_path.write_text(json.dumps({
+                "dataset_id": "MSD-Task09-Spleen",
+                "source_url": MSD_SPLEEN_URL,
+                "archive_sha256": hashlib.sha256(archive.read_bytes()).hexdigest(),
+                "archive_size_bytes": archive.stat().st_size,
+                "installed_at": "fixture",
+                "files": members,
+            }), encoding="utf-8")
+            install_from_archive(archive, output, lock_path, source_url=MSD_SPLEEN_URL)
+
+            verified = verify_installed_dataset(output, lock_path)
+
+            self.assertEqual(set(verified["files"]), set(SELECTED_FILES))
 
 
 if __name__ == "__main__":

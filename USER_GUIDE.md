@@ -89,23 +89,25 @@ Click any row to open that case for review.
 
 ## Reading the Heatmap
 
-When a heatmap is visible (C2), it appears as a semi-transparent colour overlay on the AI segmentation:
+When a heatmap is visible (C2), it appears as a semi-transparent, sequential
+`magma` colour overlay on the AI segmentation:
 
-| Colour | Meaning | What to Do |
-|--------|---------|------------|
-| 🟢 **Green** | Low uncertainty — model is confident | Likely correct; quick visual check |
-| 🟡 **Yellow/Amber** | Medium uncertainty | Inspect more carefully |
-| 🔴 **Red** | High uncertainty — model is unsure | Prioritise for detailed review and potential correction |
+| Appearance | Meaning | What to Do |
+|---|---|---|
+| **Black/deep purple** | Lower predictive entropy | Check normally; low entropy does not guarantee correctness |
+| **Magenta/orange** | Intermediate predictive entropy | Inspect carefully |
+| **Cream/yellow** | Higher predictive entropy | Prioritise for detailed review |
 
 ### Important Notes
 
 - **Boundary saliency**: High uncertainty often concentrates at organ boundaries. This is normal — boundaries are inherently ambiguous.
-- **False confidence**: The AI can be confidently wrong (green but incorrect). Always use your expert judgment.
+- **Not an error map**: High entropy is not proof of an error, and low entropy is
+  not proof of correctness. Always use your expert judgment.
 
 ### Adjusting the Heatmap
 
 Use the Uncertainty Controls panel (bottom-right):
-- **Toggle visibility**: Click the eye icon or press `h`
+- **Toggle visibility**: Use the panel control or press `u`
 - **Opacity slider**: Adjust how much the heatmap shows through
 - The heatmap updates as you scroll through slices
 
@@ -115,14 +117,15 @@ Use the Uncertainty Controls panel (bottom-right):
 
 The platform provides standard OHIF segmentation tools:
 
-| Tool | Icon | Shortcut | Use For |
-|------|------|----------|---------|
-| **Brush** | 🖌️ | `B` | Painting segmentation regions |
-| **Smart Scissors** | ✂️ | `S` | Semi-automatic boundary tracing |
-| **Threshold** | 📊 | `T` | Intensity-based region growing |
-| **Eraser** | 🧹 | `E` | Removing parts of a segmentation |
-| **Undo** | ↩️ | `Ctrl+Z` | Undo last edit |
-| **Redo** | ↪️ | `Ctrl+Shift+Z` | Redo undone edit |
+| Tool | Use For |
+|---|---|
+| **Brush** | Painting segmentation regions |
+| **Smart Scissors** | Semi-automatic boundary tracing |
+| **Threshold** | Intensity-based region growing |
+| **Eraser** | Removing parts of a segmentation |
+
+Select tools from the OHIF toolbar. Upstream OHIF shortcuts can vary by viewer
+version and deployment, so rely on the labels shown in the running viewer.
 
 ---
 
@@ -148,7 +151,9 @@ In **C0 (manual)**, the Accept button is disabled because there is no AI mask.
 
 ### Persistence
 
-After submitting, your annotation is stored in the database. If you close the case and reopen it, you'll see your previous annotation with a new AI mask overlay.
+After submission, the annotation record and stored mask URL are persisted by the
+uncertainty service. Do not assume that reopening a case restores an unfinished
+local edit; submit before leaving the case.
 
 ---
 
@@ -156,17 +161,10 @@ After submitting, your annotation is stored in the database. If you close the ca
 
 | Shortcut | Action | Available In |
 |----------|--------|-------------|
-| `B` | Brush tool | All conditions |
-| `S` | Smart scissors | All conditions |
-| `E` | Eraser | All conditions |
-| `T` | Threshold tool | All conditions |
-| `Ctrl+Z` | Undo | All conditions |
-| `Ctrl+Shift+Z` | Redo | All conditions |
 | `A` | Accept AI mask | C1/C2 |
 | `R` | Reject AI mask | C1/C2 |
-| `H` | Toggle heatmap | C2 |
-| `→` | Next case | All conditions |
-| `←` | Previous case | All conditions |
+| `U` | Toggle heatmap | C2 |
+| `Shift+U` | Refresh worklist | All conditions |
 
 ---
 
@@ -175,9 +173,9 @@ After submitting, your annotation is stored in the database. If you close the ca
 ### For Accurate Annotations
 
 1. **Always scroll through all slices** — Don't rely on a single view
-2. **Check the heatmap first** (C2) — Red regions likely need attention
+2. **Use the heatmap to focus attention** (C2) - brighter regions have higher predictive entropy
 3. **Be systematic** — Review in a consistent order (e.g., top-to-bottom)
-4. **Don't over-correct** — If the AI is already correct in green regions, leave it
+4. **Don't over-correct** - edit based on the anatomy, not the heatmap colour alone
 5. **Use the right tool** — Brush for large regions, scissors for boundaries
 
 ### For Consistent Session Data

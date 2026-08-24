@@ -17,19 +17,55 @@ Common issues and solutions for the Uncertainty Annotation Apparatus (UAA).
 
 ## Installation Issues
 
-### `POSTGRES_PASSWORD must be set`
+### PowerShell rejects `&&` while configuring OHIF
 
-**Cause:** The uncertainty service no longer accepts a hardcoded default password for security reasons.
+**Cause:** Windows PowerShell 5.1 does not support `&&` as a command separator.
 
-**Fix:**
-```bash
-# Set in .env
-echo "POSTGRES_PASSWORD=YourStrongPassword123" >> .env
+**Fix:** From the `ohif-viewer` directory, run each command separately:
 
-# Or pass as environment variable
-export POSTGRES_PASSWORD=YourStrongPassword123
-docker compose up -d
+```powershell
+Set-Location platform/app
+Copy-Item .env.example .env
+Set-Location ../..
+yarn dev
 ```
+
+If OHIF was already running, stop it with `Ctrl+C` and restart `yarn dev` after
+creating the file. The message `Failed to load ./.env` should then disappear.
+
+### PowerShell says `source` is not recognized
+
+**Cause:** `source venv/bin/activate` is a Bash command. If it fails, subsequent
+`pip install` commands affect Conda or your user Python instead of the new
+virtual environment.
+
+**Fix:** From `servers/uncertainty-service`, activate the Windows environment
+and confirm its interpreter before installing anything:
+
+```powershell
+& .\venv\Scripts\Activate.ps1
+python -c "import sys; print(sys.executable)"
+python -m pip install -r requirements.txt
+```
+
+The printed path must end in
+`servers\uncertainty-service\venv\Scripts\python.exe`.
+
+### `servers/uncertainty-service/.env.example` does not exist
+
+This is expected. The root example file is for Docker and contains
+Docker-internal hostnames. For a manual host-side run, set `DATABASE_URL`,
+`MONAI_LABEL_URL`, and `ORTHANC_DICOMWEB_URL` as shown in the manual section of
+[INSTALL.md](INSTALL.md#uncertainty-service). For the recommended Docker setup,
+do not start a second local Uvicorn process; use `docker compose up -d`.
+
+### PostgreSQL authentication fails
+
+The evaluation apparatus consistently uses `uaa-evaluation-only`. PostgreSQL
+stores the credential when its data volume is first initialized, so changing
+`.env` does not rewrite an existing database user's password. Use the password
+that initialized the volume or, if its evaluation data may be discarded,
+recreate the volumes using the warning-labeled uninstallation command below.
 
 ### `docker compose` command not found
 
@@ -88,7 +124,7 @@ python servers/monai-label/scripts/install_checkpoint.py
 ```powershell
 # Share drives in Docker Desktop settings
 # Docker Desktop → Settings → Resources → File Sharing
-# Add: C:\medical-imaging-platform
+# Add the folder where you cloned this repository
 ```
 
 ---
@@ -114,10 +150,10 @@ docker compose restart uncertainty-service
 **Fix:**
 ```bash
 # Sync from Orthanc
-curl -X POST http://localhost:58050/cases/sync
+curl -X POST http://localhost:8043/uncertainty/cases/sync
 
 # Or register manually
-curl -X POST http://localhost:58050/cases \
+curl -X POST http://localhost:8043/uncertainty/cases \
   -H "Content-Type: application/json" \
   -d '{"case_id": "my_case", "study_uid": "1.2.3", "series_uid": "1.2.3.1"}'
 ```
@@ -166,7 +202,7 @@ echo $ALLOWED_ORIGINS
 
 **Fix:**
 1. Check the browser console (F12) for errors
-2. Verify the case exists: `curl http://localhost:58050/cases`
+2. Verify the case exists: `curl http://localhost:8043/uncertainty/cases`
 3. Check the Uncertainty Controls panel for error messages
 
 ### "No reviewer session is active"
@@ -187,7 +223,7 @@ The reviewer ID must be non-empty. The condition must be one of: C0, C1, C2 (C3�
 **Fix:**
 1. Check the Uncertainty Controls panel for error messages
 2. Try toggling the heatmap with the `h` key
-3. Verify the uncertainty NIfTI was generated: `curl http://localhost:58050/files/{case_id}/uncertainty.nii.gz`
+3. Verify the uncertainty NIfTI was generated: `curl http://localhost:8043/uncertainty/files/{case_id}/uncertainty.nii.gz`
 4. Check browser console for WebGL errors
 
 ### "Accept" button disabled
@@ -284,7 +320,7 @@ docker exec -i medical-postgres psql -U medical_imaging -d annotations < scripts
 http://localhost:3000/uncertainty-review?reviewer=R01&condition=C2
 
 # Check current session state:
-curl http://localhost:58050/worklist?reviewer_id=R01
+curl http://localhost:8043/uncertainty/worklist?reviewer_id=R01
 ```
 
 ### C3/C5 conditions — expected behaviour

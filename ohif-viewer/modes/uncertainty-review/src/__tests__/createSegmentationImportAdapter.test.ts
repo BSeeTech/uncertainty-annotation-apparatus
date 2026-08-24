@@ -88,6 +88,7 @@ describe('createSegmentationImportAdapter', () => {
     expect(tools.segmentation.addSegmentations).toHaveBeenCalledWith([
       expect.objectContaining({
         segmentationId: 'uncertainty:monailabel-seg:case_1',
+        hydrated: true,
         representationData: expect.objectContaining({
           LABELMAP: expect.objectContaining({
             volumeId: 'uncertainty:monailabel-mask:case_1',

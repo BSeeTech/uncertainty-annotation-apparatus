@@ -127,6 +127,7 @@ export class WorklistApi {
     policy: WorklistPolicy;
     limit?: number;
     reviewerId?: string;
+    condition?: Condition;
     includeCompleted?: boolean;
     signal?: AbortSignal;
   }): Promise<WorklistEntry[]> {
@@ -135,6 +136,7 @@ export class WorklistApi {
       limit: String(opts.limit ?? 50),
     });
     if (opts.reviewerId) qs.set('reviewer_id', opts.reviewerId);
+    if (opts.condition) qs.set('condition', opts.condition);
     if (opts.includeCompleted) qs.set('include_completed', 'true');
     return this.request<WorklistEntry[]>(`/worklist?${qs.toString()}`, {
       method: 'GET',

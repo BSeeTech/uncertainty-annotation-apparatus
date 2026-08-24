@@ -1,15 +1,17 @@
 import os
+import asyncio
 import sys
 import unittest
 from pathlib import Path
 
-# app.main validates POSTGRES_PASSWORD at import time; the unit-test sandbox
-# has no .env, so provide a dummy value (the tests never touch the database).
-os.environ.setdefault("POSTGRES_PASSWORD", "test-password")
+# Keep tests explicit while matching the evaluation-only repository default.
+os.environ.setdefault("POSTGRES_PASSWORD", "uaa-evaluation-only")
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from app.main import msd_experiment_ready  # noqa: E402
+import httpx
+
+from app.main import monai_label_ready, msd_experiment_ready  # noqa: E402
 
 
 def msd_row(patient_id: str, valid: bool) -> dict:
@@ -71,6 +73,34 @@ class ReadinessGateTest(unittest.TestCase):
         self.assertFalse(
             msd_experiment_ready(None, self._filter_msd([det_row()]))
         )
+
+    def test_monai_probe_requires_successful_http_response(self):
+        async def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(503, request=request)
+
+        async def run():
+            async with httpx.AsyncClient(
+                transport=httpx.MockTransport(handler)
+            ) as client:
+                return await monai_label_ready(client)
+
+        ready, error = asyncio.run(run())
+        self.assertFalse(ready)
+        self.assertIn("503", error)
+
+    def test_monai_probe_accepts_info_success(self):
+        async def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, json={"name": "MONAI Label"}, request=request)
+
+        async def run():
+            async with httpx.AsyncClient(
+                transport=httpx.MockTransport(handler)
+            ) as client:
+                return await monai_label_ready(client)
+
+        ready, error = asyncio.run(run())
+        self.assertTrue(ready)
+        self.assertIsNone(error)
 
 
 if __name__ == "__main__":

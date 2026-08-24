@@ -1,4 +1,4 @@
-﻿# ============================================================
+# ============================================================
 # setup-demo-data.ps1
 #
 # One-command demo data loader for the Uncertainty Annotation
@@ -60,6 +60,17 @@ if ($LASTEXITCODE -ne 0 -or -not $services) {
 }
 Write-Ok "Stack is running"
 
+Write-Step "Checking the NIfTI-to-DICOM converter"
+$PlastimatchCommand = Get-Command plastimatch -ErrorAction SilentlyContinue
+$PlastimatchDefault = "C:\Program Files\Plastimatch\bin\plastimatch.exe"
+if (-not $PlastimatchCommand -and -not (Test-Path -LiteralPath $PlastimatchDefault)) {
+    Write-Host "  X Plastimatch was not found." -ForegroundColor Red
+    Write-Host "    Install the Windows MSI from https://plastimatch.org/windows_installation.html"
+    Write-Host "    Then open a new PowerShell window and run this script again."
+    exit 1
+}
+Write-Ok "Plastimatch is available"
+
 # ------------------------------------------------------------
 # 1. MONAI Label checkpoint
 # ------------------------------------------------------------
@@ -104,9 +115,9 @@ Write-Ok "Studies folder ready; MONAI Label restarted"
 # 4. Python deps for the DICOM conversion
 # ------------------------------------------------------------
 Write-Step "Installing Python packages for DICOM conversion"
-pip install --quiet pydicom requests
+python -m pip install --quiet -r evaluation/ct-spleen/requirements.txt
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "  ❌ pip install failed." -ForegroundColor Red
+    Write-Host "  ❌ Python package installation failed." -ForegroundColor Red
     exit 1
 }
 Write-Ok "pydicom + requests ready"
@@ -140,7 +151,7 @@ foreach ($case in $Cases) {
         series_uid = $case.series_uid
         condition = "C2"
     } | ConvertTo-Json -Compress
-    Invoke-RestMethod -Uri "http://localhost:58050/cases" -Method Post `
+    Invoke-RestMethod -Uri "http://localhost:8043/uncertainty/cases" -Method Post `
         -ContentType "application/json" -Body $body | Out-Null
     $registered++
     Write-Ok "Registered $($case.patient_id)"

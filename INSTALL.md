@@ -1,280 +1,262 @@
-# Installation Guide
+# Install and reproduce the thesis evaluation
 
-Complete installation instructions for the Uncertainty Annotation Apparatus (UAA).
+This is the single installation runbook for the **Uncertainty Annotation Apparatus (UAA)**. It takes a clean Windows computer from no repository to a running reviewer, five restored Medical Segmentation Decathlon (MSD) spleen studies, precomputed uncertainty results, and reproducible evaluation reports.
 
-## Table of Contents
+The commands are for **Windows PowerShell**. Run each code block as a block. They use PowerShell syntax and work in Windows PowerShell 5.1, where `&&` is not a command separator.
 
-- [Prerequisites](#prerequisites)
-- [Installation Methods](#installation-methods)
-  - [Quick Start (Recommended)](#quick-start-recommended)
-  - [Manual Installation](#manual-installation)
-- [Reviewer Deployment](#reviewer-deployment)
-- [Service Configuration](#service-configuration)
-- [Verification](#verification)
-- [Updating](#updating)
-- [Uninstallation](#uninstallation)
+> Evaluation use only: the shared local PostgreSQL password is `uaa-evaluation-only`. It is intentionally not a production secret. Do not expose this stack to the public internet or use it for clinical data.
 
----
+## What this installs and restores
 
-## Prerequisites
+- Git, Python 3.12, Node.js LTS, Yarn Classic, Docker Desktop, and Plastimatch
+- the UAA repository and its Docker images
+- Orthanc, MONAI Label, PostgreSQL, the uncertainty and collaboration services
+- the verified MONAI spleen model checkpoint
+- MSD Task09 Spleen (about 1.5 GB), with five thesis-validation studies converted to DICOM and uploaded to Orthanc
+- C2 Monte Carlo dropout inference for those five studies
+- the OHIF reviewer and evaluation/reporting environment
 
-### Required Software
+Allow about 30 GB of free disk space. A machine with 16 GB RAM is recommended. CPU inference normally takes about 20 minutes after the images have been restored.
 
-| Software | Version | Purpose | Download |
-|----------|---------|---------|----------|
-| Docker Desktop | 4.0+ | Container runtime | [docker.com](https://www.docker.com/products/docker-desktop) |
-| Node.js | 22 LTS+ | OHIF development | [nodejs.org](https://nodejs.org/) |
-| Python | 3.12+ | Analysis scripts | [python.org](https://python.org/) |
-| Git | 2.30+ | Version control | [git-scm.com](https://git-scm.com/) |
-| Yarn | 1.22+ | Package manager | `npm install -g yarn` |
+## 1. Install the toolchains (once per computer)
 
-### Windows-Specific Requirements
+Open **PowerShell as Administrator**:
 
-1. **WSL2 Backend** (recommended for Docker Desktop)
-   ```powershell
-   wsl --install
-   wsl --set-default-version 2
-   ```
+```powershell
+wsl --install
 
-2. **PowerShell Execution Policy** (for running scripts)
-   ```powershell
-   Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
-   ```
+winget install --id Git.Git --exact --accept-package-agreements --accept-source-agreements
+winget install --id Python.Python.3.12 --exact --accept-package-agreements --accept-source-agreements
+winget install --id OpenJS.NodeJS.LTS --exact --accept-package-agreements --accept-source-agreements
+winget install --id Docker.DockerDesktop --exact --accept-package-agreements --accept-source-agreements
+```
 
-3. **Enable required Windows features**
-   ```powershell
-   dism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart
-   dism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart
-   ```
+Restart Windows if requested. Start Docker Desktop and wait until its engine is running.
 
-## Installation Methods
+Install the current Windows MSI from the official [Plastimatch Windows installation page](https://plastimatch.org/windows_installation.html), accepting its default location. It performs the required NIfTI-to-DICOM conversion.
 
-### Quick Start (Recommended)
+Open a **new, ordinary PowerShell window**, then install Yarn Classic and verify the tools:
 
-```bash
-# 1. Clone the repository
+```powershell
+npm install --global yarn@1.22.22
+
+git --version
+python --version
+node --version
+yarn --version
+docker --version
+docker compose version
+plastimatch --version
+```
+
+If `plastimatch` is not on `PATH`, that is acceptable when installed at `C:\Program Files\Plastimatch\bin\plastimatch.exe`, which the loader also checks.
+
+## 2. Download and configure UAA
+
+```powershell
+Set-Location C:\
 git clone https://github.com/BSeeTech/uncertainty-annotation-apparatus.git
-cd uncertainty-annotation-apparatus
+Set-Location C:\uncertainty-annotation-apparatus
 
-# 2. Configure environment
-cp .env.example .env
-# EDIT .env: set POSTGRES_PASSWORD to a strong password
+Copy-Item .env.example .env -Force
 
-# 3. Provision the MONAI Label checkpoint (downloads the official spleen UNet)
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -r evaluation/ct-spleen/requirements.txt
+```
+
+If activation is blocked, run the following, reopen PowerShell, and activate again:
+
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+```
+
+The example environment already contains all evaluation settings and the shared PostgreSQL password. No `.env` editing is required.
+
+## 3. Download/build the containers and start the services
+
+Keep `.venv` active and remain in the repository root:
+
+```powershell
 python servers/monai-label/scripts/install_checkpoint.py
 
-# 4. Start all core services
+docker compose build --pull
 docker compose up -d
-
-# 5. Start the OHIF viewer
-cd ohif-viewer
-
-# Configure the viewer (optional but recommended): the stock fallback already
-# points at the local stack, but this makes it explicit.
-cd platform/app && cp .env.example .env && cd ../..
-
-yarn install
-yarn dev
-
-# 6. Open in browser
-# http://localhost:3000
+docker compose ps
 ```
 
-**To load example data** (the five spleen cases used in the evaluation) run the
-one-command loader from the repository root — it downloads, converts, uploads,
-and precomputes everything with plain-language progress:
+The first build downloads several large images. Continue when every listed service is running or healthy. To inspect startup from another window:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts/setup-demo-data.ps1
+Set-Location C:\uncertainty-annotation-apparatus
+docker compose logs --follow
 ```
 
-Non-technical testers (e.g. radiologists) only need this command plus the
-browser; see [GETTING-STARTED.md](GETTING-STARTED.md).
+`Ctrl+C` stops log watching; the containers keep running.
 
-> **Note:** The pretrained checkpoint (`pretrained_segmentation.pt`) is downloaded
-> by `install_checkpoint.py` and verified against a SHA-256 lock file. It is not
-> bundled in the repository.
+## 4. Download and restore the thesis imaging data
 
-### Manual Installation
+From the repository root, with `.venv` active, run the single resumable loader:
 
-For development without Docker:
-
-#### Database
-```bash
-# Install PostgreSQL 15+
-# Create database and user
-psql -U postgres -c "CREATE USER medical_imaging WITH PASSWORD 'your-password';"
-psql -U postgres -c "CREATE DATABASE annotations OWNER medical_imaging;"
-psql -U medical_imaging -d annotations -f scripts/init-db.sql
+```powershell
+Set-Location C:\uncertainty-annotation-apparatus
+.\.venv\Scripts\Activate.ps1
+powershell -ExecutionPolicy Bypass -File .\scripts\setup-demo-data.ps1
 ```
 
-#### Uncertainty Service
-```bash
-cd servers/uncertainty-service
-python -m venv venv
-source venv/bin/activate  # On Windows: .\venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-cp .env.example .env  # Edit with your DB credentials
-uvicorn app.main:app --reload --port 58050
+It verifies the model and dataset, downloads MSD Task09 Spleen, restores the five mapped studies, uploads their DICOM instances to Orthanc, registers the cases, and computes C2 uncertainty. Three studies have official reference masks for Dice validation; two test studies have no public reference masks and are retained for workflow review.
+
+Do not close this window during inference. Inspect progress from another window with:
+
+```powershell
+docker logs medical-monai --follow
 ```
 
-#### MONAI Label (GPU recommended)
-```bash
-cd servers/monai-label
-pip install -r requirements.txt
-# Download the pretrained checkpoint
-python scripts/install_checkpoint.py
-monailabel start_server \
-  --app . \
-  --studies /path/to/your/studies \
-  --host 0.0.0.0 \
-  --port 8000 \
-  --conf models segmentation,mcdropout_seg
-```
+## 5. Install and start the OHIF reviewer
 
-#### Collaboration Server
-```bash
-cd servers/collaboration
-npm install
-cp .env.example .env
-node server.js
-```
+Open a **second PowerShell window**:
 
-#### OHIF Viewer
-```bash
-cd ohif-viewer
+```powershell
+Set-Location C:\uncertainty-annotation-apparatus\ohif-viewer
+Set-Location platform\app
+Copy-Item .env.example .env -Force
+Set-Location ..\..
+
 yarn install
 yarn dev
 ```
 
-## Reviewer Deployment
+Keep this window open. A successful start prints the local viewer URL. The first install can take several minutes.
 
-For distributed multi-site review workflows where reviewers do not have GPU access:
+## 6. Validate the installation
 
-### 1. Generate the inference artifacts (on the GPU-equipped host)
-
-Run the administrative precompute inside the uncertainty-service container. It
-runs MONAI Label inference for every configured case × C1/C2 condition and
-publishes validated artifacts (segmentation, uncertainty, foreground probability):
-
-```bash
-# Ensure cases are registered first (see the replication sequence in
-# evaluation/ct-spleen/README.md) — generation validates each series in Orthanc.
-docker exec medical-uncertainty python /app/scripts/precompute_cases.py \
-  --cases /evaluation/cases.json \
-  --condition C2 \
-  --report /tmp/precompute.json
-```
-
-Then copy the artifacts out of the container for distribution:
-
-```bash
-# The outputs live in the uncertainty-service volume. With the main stack
-# running, they are already on the host volume; locate it via:
-docker volume inspect medical-uncertainty-artifacts --format '{{.Mountpoint}}'
-```
-
-(For the older `scripts/precompute-all.sh`: it does **not** generate — it only
-verifies that cached results exist for the reviewer profile and returns HTTP 409
-when a generation is missing. Use `precompute_cases.py` to generate.)
-
-### 2. Copy artifacts to the reviewer machine
-
-Copy the entire `reviewer-artifacts/` directory to the target machine.
-
-### 3. Start the reviewer stack (no GPU needed)
-
-```bash
-# Set the allocation
-export REVIEWER_ID=R01
-export CONDITION=C2
-
-# Start lightweight stack
-docker compose --profile reviewer up -d
-
-# Open in browser
-# http://localhost:3000/uncertainty-review?reviewer=R01&condition=C2
-```
-
-The reviewer profile starts:
-- A local PostgreSQL (host port 5433)
-- The uncertainty service in pre-computed mode (no MONAI Label connection, host port 58051)
-- An OHIF viewer configured for the reviewer
-
-### 4. Collect results
-
-After each reviewer completes their sessions, submit events are already stored in the reviewer PostgreSQL. Export the database:
-
-```bash
-pg_dump -h localhost -p 5433 -U medical_imaging annotations > reviewer-R01-results.sql
-```
-
-## Service Configuration
-
-### Environment Variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `POSTGRES_PASSWORD` | *(required)* | Database password |
-| `POSTGRES_USER` | `medical_imaging` | Database user |
-| `POSTGRES_DB` | `annotations` | Database name |
-| `ALLOWED_ORIGINS` | `http://localhost:3000` | CORS origins |
-| `MONAI_LABEL_URL` | `http://monai-label:8000` | MONAI Label address |
-| `ORTHANC_DICOMWEB_URL` | `http://orthanc:8042/dicom-web` | Orthanc DICOMweb |
-| `DEFAULT_CASE_CONDITION` | `C2` | Default workflow condition |
-| `UNCERTAINTY_OUTPUT_DIR` | `/var/lib/uncertainty-service/outputs` | NIfTI output path |
-| `MC_DROPOUT_SAMPLES` | `16` | Stochastic forward passes for MC Dropout |
-
-### Port Reference
-
-| Port | Service |
-|------|---------|
-| 3000 | OHIF Viewer |
-| 3001 | Collaboration Server |
-| 5432 | PostgreSQL (main stack) |
-| 5433 | PostgreSQL (reviewer profile) |
-| 58050 | Uncertainty Service |
-| 58051 | Uncertainty Service (reviewer profile) |
-| 8000 | MONAI Label |
-| 8042 | Orthanc (DICOMweb) |
-| 8043 | Nginx (public proxy) |
-| 8044 | MONAI Label (via proxy) |
-
-## Verification
+Open a third PowerShell window and run these read-only checks:
 
 ```powershell
-# Check all containers are running
-docker ps
-
-# Verify core services
-curl http://localhost:3001/health
-curl http://localhost:8042/system
-curl http://localhost:58050/health
-
-# Run test suite
-cd servers/uncertainty-service
-python -m pytest -v
+Invoke-RestMethod http://localhost:8043/uncertainty/health
+Invoke-RestMethod http://localhost:8043/uncertainty/health/ready
+Invoke-RestMethod http://localhost:8042/system
+Invoke-RestMethod http://localhost:8000/info
+Invoke-RestMethod http://localhost:3001/health
+Invoke-RestMethod http://localhost:8043/uncertainty/cases
 ```
 
-## Updating
+Open the three study conditions:
 
-```bash
-# Pull latest code
-git pull
+- C0: <http://localhost:3000/uncertainty-review?reviewer=R01&condition=C0>
+- C1: <http://localhost:3000/uncertainty-review?reviewer=R01&condition=C1>
+- C2: <http://localhost:3000/uncertainty-review?reviewer=R01&condition=C2>
+- Orthanc: <http://localhost:8042>
 
-# Rebuild containers
-docker compose build --no-cache uncertainty-service monai-label
+Use synthetic reviewer identifiers `R01` through `R12`. C0 is review without AI, C1 is AI segmentation without uncertainty, and C2 adds uncertainty visualization.
 
-# Restart
+## 7. Reproduce the technical evaluation report
+
+```powershell
+Set-Location C:\uncertainty-annotation-apparatus
+.\.venv\Scripts\Activate.ps1
+
+python evaluation/ct-spleen/run_evaluation.py `
+  --cases evaluation/ct-spleen/cases.json `
+  --references evaluation/ct-spleen/data `
+  --service http://localhost:8043/uncertainty `
+  --output evaluation/ct-spleen/results/experimental-results.json
+
+python evaluation/ct-spleen/render_report.py `
+  --input evaluation/ct-spleen/results/experimental-results.json `
+  --output evaluation/ct-spleen/results/experimental-report.md
+```
+
+Review `evaluation/ct-spleen/results/experimental-results.json` and `evaluation/ct-spleen/results/experimental-report.md`. Expected Dice scores for the three labeled cases are approximately 0.89, 0.88, and 0.91; small Monte Carlo differences can occur.
+
+## 8. Regenerate the synthetic reviewer-study fixture (optional)
+
+The thesis repository separates reproducible **synthetic fixtures** from real participant data. This deterministic generator creates a reviewable SQL fixture containing 12 synthetic participants, 36 sessions, 108 attempts, NASA-TLX rows, and segmentation-metric rows. It does not recreate or claim human observations.
+
+```powershell
+Set-Location C:\uncertainty-annotation-apparatus
+.\.venv\Scripts\Activate.ps1
+python scripts/generate-research-data.py --seed 42
+```
+
+Review the generated `evaluation/ct-spleen/research-data.sql`. Its immutable research schema is an export/validation artifact and is intentionally separate from the apparatus's operational PostgreSQL schema, so do not import it into the running application database. Treat statistics derived from it as simulated pipeline-validation results, not evidence from human participants.
+
+## Daily start and stop
+
+Start after the first installation:
+
+```powershell
+Set-Location C:\uncertainty-annotation-apparatus
 docker compose up -d
+
+Set-Location ohif-viewer
+yarn dev
 ```
 
-## Uninstallation
+Stop without deleting data:
 
-```bash
-# Stop and remove containers
+```powershell
+Set-Location C:\uncertainty-annotation-apparatus
+docker compose stop
+```
+
+## Troubleshooting
+
+### PowerShell rejects `&&`
+
+Use the commands in this guide on separate lines. Do not paste Bash commands containing `&&` into Windows PowerShell 5.1.
+
+### OHIF says `Failed to load ./.env`
+
+```powershell
+Set-Location C:\uncertainty-annotation-apparatus\ohif-viewer\platform\app
+Copy-Item .env.example .env -Force
+Set-Location ..\..
+yarn dev
+```
+
+### PostgreSQL authentication fails after updating an older checkout
+
+An existing Docker volume retains its original password. Preserve its data and update the role:
+
+```powershell
+docker exec medical-postgres psql -U medical_imaging -d annotations `
+  -c "ALTER USER medical_imaging WITH PASSWORD 'uaa-evaluation-only';"
+docker compose restart uncertainty-service collaboration-server
+```
+
+### A service is unhealthy
+
+```powershell
+docker compose ps
+docker compose logs --tail 200 uncertainty-service
+docker compose logs --tail 200 monai-label
+docker compose logs --tail 200 postgres
+```
+
+### Restart from an empty evaluation database
+
+This deliberately deletes UAA Docker database and generated-service volumes; the downloaded source dataset in the repository remains:
+
+```powershell
+Set-Location C:\uncertainty-annotation-apparatus
 docker compose down -v
-
-# Remove volumes (WARNING: deletes all data)
-docker volume rm medical-postgres-data medical-orthanc-data
+docker compose up -d
+powershell -ExecutionPolicy Bypass -File .\scripts\setup-demo-data.ps1
 ```
+
+## Update or uninstall
+
+Update while preserving volumes:
+
+```powershell
+Set-Location C:\uncertainty-annotation-apparatus
+git pull
+docker compose build --pull
+docker compose up -d
+```
+
+Stop and remove only UAA containers and networks with `docker compose down`. To also remove Docker volumes, use `docker compose down -v`. Delete `C:\uncertainty-annotation-apparatus` manually only if you also want to remove the repository and downloaded MSD files.
+
+After installation, execute [THESIS-CAPABILITY-VALIDATION.md](THESIS-CAPABILITY-VALIDATION.md) to test the complete implemented thesis capability set with explicit evidence and pass/fail criteria.

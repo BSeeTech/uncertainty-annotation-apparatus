@@ -221,6 +221,7 @@ export class UncertaintyService {
    *  time and reused at submission time so the exporter knows which
    *  Cornerstone3D volume's frame of reference to use. */
   private currentReferenceVolumeId: string | null = null;
+  private editStarted = false;
 
   constructor(opts: UncertaintyServiceOptions) {
     this.api = opts.api;
@@ -274,7 +275,14 @@ export class UncertaintyService {
 
   setSession(session: SessionContext): void {
     this.logger.setSession(session);
-    this.bus.patch({ session });
+    // C0/C1 must never inherit uncertainty-prioritised ordering. Keeping the
+    // policy condition-scoped is part of the experimental isolation contract,
+    // even though the selector and score badges are hidden in those arms.
+    const policy: WorklistPolicy = session.condition === 'C2' ? 'high_first' : 'fifo';
+    this.bus.patch({
+      session,
+      worklist: { ...this.bus.get().worklist, policy },
+    });
   }
 
   /**
@@ -313,6 +321,7 @@ export class UncertaintyService {
         policy: effectivePolicy,
         limit: 50,
         reviewerId: this.bus.get().session?.reviewerId,
+        condition: this.bus.get().session?.condition,
       });
       // Deduplicate by case_id: keep the first occurrence so the
       // worklist never produces a React "duplicate key" warning.
@@ -407,6 +416,7 @@ export class UncertaintyService {
     const requiresAiMask = condition === 'C1' || condition === 'C2';
 
     this.logger.setCurrentCase(args.caseId);
+    this.editStarted = false;
     this.bus.patch({
       currentCase: { caseId: args.caseId, inference: null },
       aiSegmentation: {
@@ -468,6 +478,7 @@ export class UncertaintyService {
     const requiresHeatmap = session?.condition === 'C2';
 
     this.logger.setCurrentCase(args.caseId);
+    this.editStarted = false;
     this.logger.log('case_open', { caseId: args.caseId });
     this.currentReferenceVolumeId = args.referenceVolumeId;
     await this.unloadImportedSegmentation();
@@ -654,6 +665,7 @@ export class UncertaintyService {
   }): Promise<void> {
     const session = this.bus.get().session;
     this.logger.setCurrentCase(args.caseId);
+    this.editStarted = false;
     this.logger.log('case_open', { caseId: args.caseId });
     this.currentReferenceVolumeId = args.referenceVolumeId ?? null;
     await this.unloadImportedSegmentation();
@@ -688,6 +700,10 @@ export class UncertaintyService {
     const cur = this.bus.get().currentCase;
     if (!cur) return;
     this.logger.log('case_close', { caseId: cur.caseId });
+    // Start the network flush before asynchronous viewport/volume teardown.
+    // OHIF does not await onModeExit, so delaying this until after unload can
+    // lose case_close during route or full-page navigation.
+    const closeEventFlush = this.logger.flush();
     this.logger.setCurrentCase(null);
     this.currentReferenceVolumeId = null;
     await this.unloadImportedSegmentation();
@@ -704,7 +720,7 @@ export class UncertaintyService {
     });
     // Force a flush on close so completion timestamps land in the
     // database promptly even if the reviewer is fast.
-    try { await this.logger.flush(); } catch { /* swallow — retry next tick */ }
+    try { await closeEventFlush; } catch { /* swallow — retry next tick */ }
   }
 
   // -------------------------------------------------------------------
@@ -738,6 +754,23 @@ export class UncertaintyService {
       heatmap: { ...this.bus.get().heatmap, opacity: clamped },
     });
     this.logger.log('opacity_change', { opacity: clamped });
+  }
+
+  /** Bridge host-level Cornerstone events into the study event stream. */
+  logViewerEvent(
+    eventType: 'slice_change' | 'viewport_change' | 'structure_focus',
+    payload?: Record<string, unknown>,
+  ): void {
+    this.logger.log(eventType, payload ?? null);
+  }
+
+  /** Record the first edit and a lightweight state snapshot for each change. */
+  recordSegmentationChange(payload?: Record<string, unknown>): void {
+    if (!this.editStarted) {
+      this.editStarted = true;
+      this.logger.log('edit_start', payload ?? null);
+    }
+    this.logger.log('snapshot', payload ?? null);
   }
 
   // -------------------------------------------------------------------
@@ -898,6 +931,9 @@ export class UncertaintyService {
   // -------------------------------------------------------------------
 
   async acceptCurrent(): Promise<SubmissionOutcome | null> {
+    if (this.bus.get().session?.condition === 'C0') {
+      throw new Error('[UncertaintyService] C0 has no AI mask to accept.');
+    }
     return this.submitAnnotation({ status: 'accepted' });
   }
 

@@ -10,5 +10,12 @@ export const cache = {
   removeVolumeLoadObject: jest.fn(),
   removeVolume: jest.fn(),
 };
-export const Enums = {};
+export const eventTarget = new EventTarget();
+export const Enums = {
+  Events: {
+    STACK_NEW_IMAGE: 'STACK_NEW_IMAGE',
+    VOLUME_NEW_IMAGE: 'VOLUME_NEW_IMAGE',
+    CAMERA_MODIFIED: 'CAMERA_MODIFIED',
+  },
+};
 export default {};

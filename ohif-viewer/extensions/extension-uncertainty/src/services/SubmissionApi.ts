@@ -30,7 +30,7 @@ export interface SubmissionOutcome {
   case_id: string;
   reviewer_id: string;
   condition: Condition;
-  storage_url: string;
+  storage_url: string | null;
   edit_voxel_count: number;
   ai_foreground_voxels: number;
   reviewer_foreground_voxels: number;
@@ -161,9 +161,11 @@ export class SubmissionApi {
   async getAnnotation(args: {
     caseId: string;
     reviewerId: string;
+    condition: Condition;
     signal?: AbortSignal;
   }): Promise<SubmissionOutcome | null> {
-    const path = `/annotations/${encodeURIComponent(args.caseId)}/${encodeURIComponent(args.reviewerId)}`;
+    const path = `/annotations/${encodeURIComponent(args.caseId)}/${encodeURIComponent(args.reviewerId)}`
+      + `?condition=${encodeURIComponent(args.condition)}`;
     try {
       return await this.send<SubmissionOutcome>(path, {
         method: 'GET',

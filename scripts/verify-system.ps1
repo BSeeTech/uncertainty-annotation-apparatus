@@ -36,8 +36,7 @@ function Test-Endpoint {
 function Test-Database {
     Write-Host "Testing PostgreSQL..." -NoNewline
     try {
-        $env:PGPASSWORD = "SecurePass123"
-        $result = psql -h localhost -U medical_imaging -d annotations -c "SELECT 1;" 2>&1
+        $result = docker exec medical-postgres psql -U medical_imaging -d annotations -At -c "SELECT 1;" 2>&1
         if ($LASTEXITCODE -eq 0) {
             Write-Host " ✅ PASS" -ForegroundColor Green
             return $true
@@ -46,8 +45,8 @@ function Test-Database {
             return $false
         }
     } catch {
-        Write-Host " ⚠️  SKIP (psql not installed)" -ForegroundColor Yellow
-        return $true
+        Write-Host " ❌ FAIL ($($_.Exception.Message))" -ForegroundColor Red
+        return $false
     }
 }
 
@@ -62,8 +61,8 @@ function Test-Container {
             Write-Host " ✅ PASS (Running)" -ForegroundColor Green
             return $true
         } else {
-            Write-Host " ⚠️  WARNING (Running but unhealthy)" -ForegroundColor Yellow
-            return $true
+            Write-Host " ❌ FAIL (Running but unhealthy)" -ForegroundColor Red
+            return $false
         }
     } else {
         Write-Host " ❌ FAIL (Not running)" -ForegroundColor Red
@@ -77,14 +76,16 @@ Write-Host "🐳 DOCKER CONTAINERS`n" -ForegroundColor Yellow
 $allPassed = (Test-Container "medical-postgres") -and $allPassed
 $allPassed = (Test-Container "medical-orthanc") -and $allPassed
 $allPassed = (Test-Container "medical-monai") -and $allPassed
-$allPassed = (Test-Container "medical-orthanc-proxy") -and $allPassed
+$allPassed = (Test-Container "medical-uncertainty") -and $allPassed
+$allPassed = (Test-Container "medical-nginx") -and $allPassed
 $allPassed = (Test-Container "medical-collaboration") -and $allPassed
 
 Write-Host "`n═══════════════════════════════════════════════════════════`n" -ForegroundColor Cyan
 Write-Host "🌐 SERVICE ENDPOINTS`n" -ForegroundColor Yellow
 
 $allPassed = (Test-Endpoint "Orthanc PACS" "http://localhost:8042/system") -and $allPassed
-$allPassed = (Test-Endpoint "Orthanc Proxy" "http://localhost:8080") -and $allPassed
+$allPassed = (Test-Endpoint "Uncertainty API" "http://localhost:8043/uncertainty/health/ready") -and $allPassed
+$allPassed = (Test-Endpoint "DICOMweb Gateway" "http://localhost:8043/dicom-web/studies") -and $allPassed
 $allPassed = (Test-Endpoint "MONAI Label" "http://localhost:8000/info/") -and $allPassed
 $allPassed = (Test-Endpoint "Collaboration Server" "http://localhost:3001/health") -and $allPassed
 
@@ -109,3 +110,7 @@ if ($allPassed) {
 }
 
 Write-Host "`n"
+if ($allPassed) {
+    exit 0
+}
+exit 1

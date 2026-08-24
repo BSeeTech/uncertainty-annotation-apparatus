@@ -72,18 +72,23 @@ async def persist_result(pool: asyncpg.Pool, manifest: dict[str, Any]) -> None:
     await pool.execute(
         """
         INSERT INTO uncertainty_scores
-          (case_id, score, band, inference_status, uncertainty_url, segmentation_url, updated_at)
-        VALUES ($1, $2, $3, $4, NULL, NULL, NOW())
-        ON CONFLICT (case_id) DO UPDATE
+          (case_id, condition, score, band, inference_status, uncertainty_url, segmentation_url, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+        ON CONFLICT (case_id, condition) DO UPDATE
         SET score = EXCLUDED.score,
             band = EXCLUDED.band,
             inference_status = EXCLUDED.inference_status,
+            uncertainty_url = EXCLUDED.uncertainty_url,
+            segmentation_url = EXCLUDED.segmentation_url,
             updated_at = NOW()
         """,
         case_id,
+        condition,
         float(scores.get("score", 0.0)),
         scores.get("band"),
         inference_status,
+        None,
+        None,
     )
 
 
@@ -167,6 +172,17 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
                     "status": "running",
                 }
                 report["cases"].append(row)
+                if case.get("source_split") == "imagesDET":
+                    row.update(
+                        {
+                            "status": "skipped",
+                            "reason": (
+                                "DET-only manifest row; imaging data is not part of "
+                                "the MSD CT spleen restoration"
+                            ),
+                        }
+                    )
+                    continue
                 try:
                     case_root = OUTPUT_DIR / safe_file_case_id(case["case_id"])
                     try:
@@ -282,6 +298,12 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
     finally:
         await pool.close()
     report["completed_at"] = datetime.now(timezone.utc).isoformat()
+    if args.report:
+        args.report.parent.mkdir(parents=True, exist_ok=True)
+        args.report.write_text(
+            json.dumps(report, indent=2, default=str) + "\n",
+            encoding="utf-8",
+        )
     return report
 
 

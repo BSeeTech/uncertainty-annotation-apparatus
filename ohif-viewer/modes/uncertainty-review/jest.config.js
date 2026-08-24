@@ -5,6 +5,7 @@ module.exports = {
   testMatch: ['**/__tests__/**/*.test.(ts|tsx)'],
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx'],
   moduleNameMapper: {
+    '^@ohif/core$': '<rootDir>/src/__tests__/mocks/ohif-core.ts',
     '^@cornerstonejs/core$': '<rootDir>/src/__tests__/mocks/cornerstone.ts',
     '^@cornerstonejs/tools$': '<rootDir>/src/__tests__/mocks/cornerstone-tools.ts',
     '^@kitware/vtk.js/(.*)$': '<rootDir>/src/__tests__/mocks/vtk.ts',

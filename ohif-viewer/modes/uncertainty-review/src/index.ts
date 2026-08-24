@@ -27,6 +27,15 @@ import type {
   WorklistEntry,
 } from '@thesis/extension-uncertainty';
 import { HeatmapRenderer } from '@thesis/extension-uncertainty';
+// Reuse the stock OHIF segmentation-mode definitions at runtime. `require`
+// keeps this strict standalone mode's typecheck from recursively checking the
+// upstream JavaScript-oriented mode sources under our stricter TS settings.
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const toolbarButtons = require('../../segmentation/src/toolbarButtons').default;
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const segmentationButtons = require('../../segmentation/src/segmentationButtons').default;
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const initToolGroups = require('../../segmentation/src/initToolGroups').default;
 
 import { parseSessionFromSearch, describeSession } from './sessionConfig';
 import { createCornerstoneAdapter } from './adapter/createCornerstoneAdapter';
@@ -42,6 +51,93 @@ import {
 // why we don't try to type the OHIF surface tightly here.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyServices = any;
+
+let telemetryCleanups: Array<() => void> = [];
+
+export function installReviewerTelemetry(service: UncertaintyService): void {
+  for (const cleanup of telemetryCleanups.splice(0)) cleanup();
+
+  const bind = (
+    target: AnyServices,
+    eventName: string | undefined,
+    handler: (event: AnyServices) => void,
+  ): void => {
+    if (!target?.addEventListener || !eventName) return;
+    target.addEventListener(eventName, handler);
+    telemetryCleanups.push(() => target.removeEventListener?.(eventName, handler));
+  };
+
+  const csTarget = (cornerstone as AnyServices).eventTarget;
+  const csEvents = (cornerstone as AnyServices).Enums?.Events ?? {};
+  // Cornerstone Tools emits its events on @cornerstonejs/core.eventTarget;
+  // eventTarget is not exported by the Tools package in the installed v3 API.
+  const toolsTarget = csTarget;
+  const toolsEvents = (cstoneTools as AnyServices).Enums?.Events ?? {};
+
+  const sliceHandler = (event: AnyServices) => service.logViewerEvent('slice_change', {
+    viewportId: event?.detail?.viewportId ?? null,
+    imageIndex: event?.detail?.imageIndex ?? event?.detail?.currentImageIdIndex ?? null,
+  });
+  bind(csTarget, csEvents.STACK_NEW_IMAGE, sliceHandler);
+  bind(csTarget, csEvents.VOLUME_NEW_IMAGE, sliceHandler);
+  bind(csTarget, csEvents.CAMERA_MODIFIED, (event: AnyServices) =>
+    service.logViewerEvent('viewport_change', {
+      viewportId: event?.detail?.viewportId ?? null,
+    })
+  );
+  bind(toolsTarget, toolsEvents.SEGMENTATION_DATA_MODIFIED, (event: AnyServices) =>
+    service.recordSegmentationChange({
+      segmentationId: event?.detail?.segmentationId ?? null,
+      modifiedSlicesToUse: event?.detail?.modifiedSlicesToUse ?? null,
+    })
+  );
+  bind(toolsTarget, toolsEvents.SEGMENTATION_REPRESENTATION_MODIFIED, (event: AnyServices) =>
+    service.logViewerEvent('structure_focus', {
+      segmentationId: event?.detail?.segmentationId ?? null,
+      type: event?.detail?.type ?? null,
+    })
+  );
+
+  // Some OHIF/Cornerstone combinations do not dispatch VOLUME_NEW_IMAGE or
+  // CAMERA_MODIFIED for keyboard scrolling and toolbar pan/zoom. Capture the
+  // corresponding reviewer actions at the viewport canvas boundary as a
+  // compatibility fallback. Native events remain the preferred richer path.
+  if (typeof document !== 'undefined') {
+    const isViewportTarget = (target: EventTarget | null) =>
+      target instanceof HTMLCanvasElement ||
+      (target instanceof Element && Boolean(target.closest('[data-viewport-uid]')));
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'ArrowUp' || event.key === 'ArrowDown' ||
+          event.key === 'PageUp' || event.key === 'PageDown') {
+        service.logViewerEvent('slice_change', {
+          source: 'keyboard',
+          key: event.key,
+        });
+      }
+    };
+    const onWheel = (event: WheelEvent) => {
+      if (isViewportTarget(event.target)) {
+        service.logViewerEvent('slice_change', {
+          source: 'wheel',
+          deltaY: event.deltaY,
+        });
+      }
+    };
+    const onPointerUp = (event: PointerEvent) => {
+      if (isViewportTarget(event.target)) {
+        service.logViewerEvent('viewport_change', {
+          source: 'viewport_pointer',
+        });
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    document.addEventListener('wheel', onWheel, { passive: true });
+    document.addEventListener('pointerup', onPointerUp);
+    telemetryCleanups.push(() => document.removeEventListener('keydown', onKeyDown));
+    telemetryCleanups.push(() => document.removeEventListener('wheel', onWheel));
+    telemetryCleanups.push(() => document.removeEventListener('pointerup', onPointerUp));
+  }
+}
 
 function asList(value: AnyServices): AnyServices[] {
   if (!value) return [];
@@ -511,6 +607,8 @@ export function resolveSegmentationIdForReference({
   const getActiveSegFn: ((vpId: string) => AnyServices) | undefined =
     typeof segApi.getActiveSegmentation === 'function'
       ? (vpId: string) => segApi.getActiveSegmentation(vpId)
+      : typeof segApi.activeSegmentation?.getActiveSegmentation === 'function'
+        ? (vpId: string) => segApi.activeSegmentation.getActiveSegmentation(vpId)
       : undefined;
 
   // V3 API: segmentation.state.getViewportIdsWithSegmentation(segmentationId)
@@ -533,6 +631,13 @@ export function resolveSegmentationIdForReference({
         if (Array.isArray(ids)) viewportIds.push(...ids);
       }
       viewportIds = [...new Set(viewportIds)];
+      // Some Cornerstone releases also support the legacy no-argument form.
+      // It is the only discoverable route when a freshly-created manual C0
+      // segmentation has not yet appeared in getSegmentations().
+      if (viewportIds.length === 0) {
+        const ids = segApi.state.getViewportIdsWithSegmentation();
+        if (Array.isArray(ids)) viewportIds = [...new Set(ids)];
+      }
     }
 
     if (viewportIds.length > 0) {
@@ -787,8 +892,27 @@ function onModeEnter(
   args: OnModeEnterArgs,
   modeOpts: { modeConfiguration?: ModeConfigOverrides },
 ): void {
-  const { servicesManager, extensionManager } = args;
+  const { servicesManager, extensionManager, commandsManager } = args;
   const cfg = modeOpts.modeConfiguration ?? {};
+
+  // Use the same proven tool-group and toolbar registration as OHIF's stock
+  // Segmentation mode.  Without this, the panel renders an empty
+  // "Segmentation Tools" section and reviewers cannot brush/erase an imported
+  // AI labelmap even though the mask itself is visible.
+  const { toolbarService, toolGroupService } = servicesManager.services;
+  if (toolbarService && toolGroupService) {
+    initToolGroups(extensionManager, toolGroupService, commandsManager);
+    toolbarService.addButtons(toolbarButtons);
+    toolbarService.addButtons(segmentationButtons);
+    toolbarService.createButtonSection('primary', [
+      'WindowLevel',
+      'Pan',
+      'Zoom',
+      'Capture',
+      'MoreTools',
+    ]);
+    toolbarService.createButtonSection('segmentationToolbox', ['BrushTools', 'Shapes']);
+  }
 
   // 1. Register a custom volume hanging protocol so the viewport is a
   //    VolumeViewport — required by the heatmap overlay (StackViewport
@@ -870,6 +994,7 @@ function onModeEnter(
     servicesManager,
     extensionManager,
   });
+  installReviewerTelemetry(uncertaintyService);
 
   if (session) {
     rememberSessionForRoute(session);
@@ -946,6 +1071,7 @@ interface OnModeExitArgs {
 }
 
 function onModeExit({ servicesManager }: OnModeExitArgs): void {
+  for (const cleanup of telemetryCleanups.splice(0)) cleanup();
   const uncertaintyService: UncertaintyService | undefined =
     servicesManager.services?.uncertaintyService;
   if (!uncertaintyService) return;

@@ -161,8 +161,8 @@ class OrthancSyncContractTest(unittest.TestCase):
         self.assertEqual(summary, {"checked": 1, "cleared": 1})
         self.assertFalse((output_dir / "study.stale").exists())
         query, args = pool.executions[-1]
-        self.assertIn("segmentation_url = NULL", query)
-        self.assertEqual(args, ("study.stale",))
+        self.assertIn("DELETE FROM uncertainty_scores", query)
+        self.assertEqual(args, ("study.stale", "C2"))
 
     def test_set_case_condition_persists_c1_without_deleting_c2_artifacts(self):
         pool = FakePool()

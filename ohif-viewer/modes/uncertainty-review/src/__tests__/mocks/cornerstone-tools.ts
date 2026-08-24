@@ -1,4 +1,8 @@
 export const Enums = {
+  Events: {
+    SEGMENTATION_DATA_MODIFIED: 'SEGMENTATION_DATA_MODIFIED',
+    SEGMENTATION_REPRESENTATION_MODIFIED: 'SEGMENTATION_REPRESENTATION_MODIFIED',
+  },
   SegmentationRepresentations: {
     Labelmap: 'Labelmap',
   },

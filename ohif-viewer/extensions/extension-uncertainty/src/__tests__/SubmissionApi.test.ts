@@ -144,19 +144,19 @@ describe('SubmissionApi', () => {
       reviewer_foreground_voxels: 11, edit_fraction_of_ai_foreground: 0.1,
       submitted_at: 'T',
     } }));
-    const out = await api.getAnnotation({ caseId: 'c', reviewerId: 'R01' });
+    const out = await api.getAnnotation({ caseId: 'c', reviewerId: 'R01', condition: 'C2' });
     expect(out?.edit_voxel_count).toBe(1);
   });
 
   it('GET returns null on 404 instead of throwing', async () => {
     nextResponses.push(fakeResponse({ status: 404, body: 'not found' }));
-    const out = await api.getAnnotation({ caseId: 'c', reviewerId: 'R01' });
+    const out = await api.getAnnotation({ caseId: 'c', reviewerId: 'R01', condition: 'C2' });
     expect(out).toBeNull();
   });
 
   it('GET throws on 500 (not 404)', async () => {
     nextResponses.push(fakeResponse({ status: 500, body: 'boom' }));
-    await expect(api.getAnnotation({ caseId: 'c', reviewerId: 'R01' }))
+    await expect(api.getAnnotation({ caseId: 'c', reviewerId: 'R01', condition: 'C2' }))
       .rejects.toBeInstanceOf(SubmissionApiError);
   });
 

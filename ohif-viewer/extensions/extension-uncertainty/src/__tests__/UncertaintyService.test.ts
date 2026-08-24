@@ -179,6 +179,19 @@ describe('UncertaintyService — session', () => {
     expect(logger.pendingCount).toBe(1);
   });
 
+  it.each([
+    ['C0', 'fifo'],
+    ['C1', 'fifo'],
+    ['C2', 'high_first'],
+  ] as const)('enforces the %s worklist isolation policy', async (condition, policy) => {
+    const { service, api } = buildService();
+    api.worklistResponses.push([]);
+    service.setSession({ reviewerId: 'R03', condition });
+    await service.refreshWorklist();
+    expect(service.getState().worklist.policy).toBe(policy);
+    expect(api.worklistRequests.at(-1)?.policy).toBe(policy);
+  });
+
   it('applySessionFromQuery accepts ?reviewer=&condition=', () => {
     const { service } = buildService();
     expect(service.applySessionFromQuery('?reviewer=R03&condition=C2')).toBe(true);
@@ -769,5 +782,34 @@ describe('UncertaintyService — submitAnnotation', () => {
     expect(types).toContain('accept');
     expect(types).toContain('submit');
     expect(types.indexOf('accept')).toBeLessThan(types.indexOf('submit'));
+  });
+
+  it('bridges viewer telemetry and emits edit_start only once per case', async () => {
+    const { service, api } = buildService();
+    service.setSession({ reviewerId: 'R01', condition: 'C2' });
+    await service.openCase({
+      caseId: 'case_001',
+      referenceVolumeId: 'vol:image',
+      viewportIds: ['vp1'],
+    });
+    await (service as any).logger.flush();
+    api.postedEvents = [];
+
+    service.logViewerEvent('slice_change', { viewportId: 'vp1' });
+    service.logViewerEvent('viewport_change', { viewportId: 'vp1' });
+    service.logViewerEvent('structure_focus', { segmentationId: 'seg-1' });
+    service.recordSegmentationChange({ segmentationId: 'seg-1' });
+    service.recordSegmentationChange({ segmentationId: 'seg-1' });
+    await (service as any).logger.flush();
+
+    const types = api.postedEvents.flat().map(e => e.event_type);
+    expect(types).toEqual([
+      'slice_change',
+      'viewport_change',
+      'structure_focus',
+      'edit_start',
+      'snapshot',
+      'snapshot',
+    ]);
   });
 });

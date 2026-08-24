@@ -35,7 +35,8 @@ const pool = new Pool({
   host: process.env.POSTGRES_HOST || 'localhost',
   database: process.env.POSTGRES_DB || 'annotations',
   user: process.env.POSTGRES_USER || 'medical_imaging',
-  password: process.env.POSTGRES_PASSWORD || 'secure_password',
+  // Evaluation-apparatus default. Override before exposing this service.
+  password: process.env.POSTGRES_PASSWORD || 'uaa-evaluation-only',
   port: parseInt(process.env.POSTGRES_PORT) || 5432,
   // Connection pool settings
   max: 20,
@@ -785,8 +786,9 @@ app.get('/health', async (req, res) => {
     dbStatus = 'unhealthy';
   }
 
-  res.json({ 
-    status: 'healthy', 
+  const healthy = dbStatus === 'healthy';
+  res.status(healthy ? 200 : 503).json({
+    status: healthy ? 'healthy' : 'unhealthy',
     database: dbStatus,
     timestamp: new Date().toISOString(),
     activeSessions: activeSessions.size,

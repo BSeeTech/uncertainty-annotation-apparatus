@@ -5,6 +5,9 @@
     "moduleResolution": "Bundler",
     "baseUrl": ".",
     "paths": {
+      "@ohif/core": [
+        "src/ambient-ohif-core.d.ts"
+      ],
       "@thesis/extension-uncertainty": [
         "../../extensions/extension-uncertainty/src/index.tsx"
       ]

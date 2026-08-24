@@ -21,6 +21,7 @@ from pydantic import BaseModel, Field
 
 from app.orthanc_sync import discover_cases
 from app.scoring import compute_uncertainty_scores
+from app.annotation_diff import diff_files, load_nifti
 from app.artifact_generation import current_generation_dir
 from app.result_manifest import (
     ManifestValidationError,
@@ -32,11 +33,8 @@ from app.result_manifest import (
 DATABASE_URL = os.getenv("DATABASE_URL")
 if DATABASE_URL is None:
     _db_user = os.getenv("POSTGRES_USER", "medical_imaging")
-    _db_pass = os.getenv("POSTGRES_PASSWORD")
-    if _db_pass is None:
-        raise RuntimeError(
-            "POSTGRES_PASSWORD must be set when DATABASE_URL is not provided"
-        )
+    # Evaluation-apparatus default. Override before exposing this service.
+    _db_pass = os.getenv("POSTGRES_PASSWORD", "uaa-evaluation-only")
     _db_host = os.getenv("POSTGRES_HOST", "postgres")
     _db_name = os.getenv("POSTGRES_DB", "annotations")
     DATABASE_URL = f"postgresql://{_db_user}:{_db_pass}@{_db_host}:5432/{_db_name}"
@@ -486,92 +484,45 @@ async def set_case_condition(
         case_id,
         condition,
     )
-    if condition == "C0":
-        await pool.execute(
-            """
-            UPDATE uncertainty_scores
-            SET score = 0, band = NULL, inference_status = NULL,
-                uncertainty_url = NULL,
-                segmentation_url = NULL, updated_at = NOW()
-            WHERE case_id = $1
-            """,
-            case_id,
-        )
-    elif condition == "C1":
-        await pool.execute(
-            """
-            UPDATE uncertainty_scores
-            SET score = 0, band = NULL, inference_status = NULL,
-                uncertainty_url = NULL,
-                updated_at = NOW()
-            WHERE case_id = $1
-            """,
-            case_id,
-        )
 
 
 async def reconcile_artifact_records(pool: asyncpg.Pool) -> dict[str, int]:
     rows = await pool.fetch(
         """
-        SELECT c.case_id, c.condition,
-               s.segmentation_url, s.uncertainty_url
+        SELECT c.case_id, s.condition, s.segmentation_url, s.uncertainty_url
         FROM cases c
-        LEFT JOIN uncertainty_scores s USING (case_id)
+        LEFT JOIN uncertainty_scores s ON s.case_id = c.case_id
         """
     )
     cleared = 0
     for row in rows:
         case_id = row["case_id"]
         condition = row["condition"]
-
-        if condition == "C0":
-            await pool.execute(
-                """
-                UPDATE uncertainty_scores
-                SET score = 0, band = NULL, inference_status = NULL,
-                    uncertainty_url = NULL,
-                    segmentation_url = NULL, updated_at = NOW()
-                WHERE case_id = $1
-                """,
-                case_id,
-            )
-            if row["segmentation_url"] or row["uncertainty_url"]:
-                cleared += 1
+        if condition not in ("C1", "C2"):
             continue
-
         try:
             cached = cached_generation_result(case_id, condition)
         except ManifestValidationError:
             cached = None
         if cached is None:
             await pool.execute(
-                """
-                UPDATE uncertainty_scores
-                SET score = 0, band = NULL, inference_status = NULL,
-                    uncertainty_url = NULL,
-                    segmentation_url = NULL, updated_at = NOW()
-                WHERE case_id = $1
-                """,
+                "DELETE FROM uncertainty_scores WHERE case_id = $1 AND condition = $2",
                 case_id,
+                condition,
             )
             if row["segmentation_url"] or row["uncertainty_url"]:
                 cleared += 1
             continue
-
         await pool.execute(
             """
             UPDATE uncertainty_scores
-            SET score = $2, band = $3, inference_status = $6,
-                uncertainty_url = $4,
-                segmentation_url = $5, updated_at = NOW()
-            WHERE case_id = $1
+            SET score = $3, band = $4, inference_status = $5,
+                uncertainty_url = $6, segmentation_url = $7, updated_at = NOW()
+            WHERE case_id = $1 AND condition = $2
             """,
-            case_id,
-            cached["score"],
-            cached["band"],
-            cached["uncertainty_url"],
-            cached["segmentation_url"],
+            case_id, condition, cached["score"], cached["band"],
             cached.get("inference_status", "completed"),
+            cached["uncertainty_url"], cached["segmentation_url"],
         )
 
     return {"checked": len(rows), "cleared": cleared}
@@ -614,7 +565,8 @@ async def init_schema(pool: asyncpg.Pool) -> None:
         );
 
         CREATE TABLE IF NOT EXISTS uncertainty_scores (
-          case_id TEXT PRIMARY KEY REFERENCES cases(case_id) ON DELETE CASCADE,
+          case_id TEXT REFERENCES cases(case_id) ON DELETE CASCADE,
+          condition TEXT NOT NULL DEFAULT 'C2',
           score DOUBLE PRECISION,
           band TEXT,
           inference_status TEXT DEFAULT 'completed',
@@ -626,6 +578,29 @@ async def init_schema(pool: asyncpg.Pool) -> None:
         -- Migration for existing databases: add inference_status if missing
         ALTER TABLE uncertainty_scores
         ADD COLUMN IF NOT EXISTS inference_status TEXT DEFAULT 'completed';
+        ALTER TABLE uncertainty_scores ADD COLUMN IF NOT EXISTS condition TEXT;
+        UPDATE uncertainty_scores s
+        SET condition = COALESCE(s.condition, c.condition, 'C2')
+        FROM cases c
+        WHERE c.case_id = s.case_id AND s.condition IS NULL;
+        ALTER TABLE uncertainty_scores ALTER COLUMN condition SET NOT NULL;
+        DO $$
+        BEGIN
+          IF EXISTS (
+            SELECT 1 FROM pg_constraint
+            WHERE conrelid = 'uncertainty_scores'::regclass AND contype = 'p'
+              AND pg_get_constraintdef(oid) NOT LIKE '%condition%'
+          ) THEN
+            ALTER TABLE uncertainty_scores DROP CONSTRAINT uncertainty_scores_pkey;
+          END IF;
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint
+            WHERE conrelid = 'uncertainty_scores'::regclass AND contype = 'p'
+          ) THEN
+            ALTER TABLE uncertainty_scores
+              ADD CONSTRAINT uncertainty_scores_pkey PRIMARY KEY (case_id, condition);
+          END IF;
+        END $$;
 
         CREATE TABLE IF NOT EXISTS annotation_status (
           case_id TEXT NOT NULL REFERENCES cases(case_id) ON DELETE CASCADE,
@@ -635,7 +610,7 @@ async def init_schema(pool: asyncpg.Pool) -> None:
           started_at TIMESTAMPTZ,
           ended_at TIMESTAMPTZ,
           updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-          PRIMARY KEY (case_id, reviewer_id)
+          PRIMARY KEY (case_id, reviewer_id, condition)
         );
 
         CREATE TABLE IF NOT EXISTS review_events (
@@ -681,7 +656,7 @@ async def init_schema(pool: asyncpg.Pool) -> None:
         CREATE INDEX IF NOT EXISTS idx_review_events_case
           ON review_events(case_id, reviewer_id);
         CREATE INDEX IF NOT EXISTS idx_uncertainty_scores_score
-          ON uncertainty_scores(score);
+          ON uncertainty_scores(condition, score);
         CREATE INDEX IF NOT EXISTS idx_inference_results_case_created
           ON inference_results(case_id, created_at DESC);
         """
@@ -691,6 +666,25 @@ async def init_schema(pool: asyncpg.Pool) -> None:
         ALTER TABLE annotation_status
           ADD COLUMN IF NOT EXISTS started_at TIMESTAMPTZ,
           ADD COLUMN IF NOT EXISTS ended_at TIMESTAMPTZ;
+
+        DO $$
+        BEGIN
+          IF EXISTS (
+            SELECT 1 FROM pg_constraint
+            WHERE conrelid = 'annotation_status'::regclass AND contype = 'p'
+              AND pg_get_constraintdef(oid) NOT LIKE '%condition%'
+          ) THEN
+            ALTER TABLE annotation_status DROP CONSTRAINT annotation_status_pkey;
+          END IF;
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint
+            WHERE conrelid = 'annotation_status'::regclass AND contype = 'p'
+          ) THEN
+            ALTER TABLE annotation_status
+              ADD CONSTRAINT annotation_status_pkey
+              PRIMARY KEY (case_id, reviewer_id, condition);
+          END IF;
+        END $$;
 
         ALTER TABLE uncertainty_annotations
           ADD COLUMN IF NOT EXISTS storage_url TEXT,
@@ -886,8 +880,24 @@ def msd_experiment_ready(
     )
 
 
+async def monai_label_ready(client: httpx.AsyncClient | None = None) -> tuple[bool, str | None]:
+    """Probe the inference dependency used by both C1 and C2 workflows."""
+    owns_client = client is None
+    if client is None:
+        client = httpx.AsyncClient(timeout=5.0)
+    try:
+        response = await client.get(f"{MONAI_LABEL_URL}/info/")
+        response.raise_for_status()
+        return True, None
+    except (httpx.HTTPError, OSError) as exc:
+        return False, str(exc)
+    finally:
+        if owns_client:
+            await client.aclose()
+
+
 @app.get("/health/ready")
-async def readiness() -> dict[str, Any]:
+async def readiness() -> Response:
     pool = await get_pool()
     await pool.fetchval("SELECT 1")
     configured: list[dict[str, Any]] = []
@@ -930,16 +940,21 @@ async def readiness() -> dict[str, Any]:
         configuration_error,
         msd_status,
     )
-    return {
-        "status": "healthy",
-        "ready": experiment_ready,
+    monai_ready, monai_error = await monai_label_ready()
+    ready = experiment_ready and monai_ready
+    payload = {
+        "status": "healthy" if ready else "unhealthy",
+        "ready": ready,
         "database": "healthy",
+        "monai_label": "healthy" if monai_ready else "unhealthy",
+        "monai_label_error": monai_error,
         "output_directory": str(OUTPUT_DIR),
         "evaluation_cases_path": str(EVALUATION_CASES_PATH),
         "configuration_error": configuration_error,
         "cases": case_status,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
+    return JSONResponse(payload, status_code=200 if ready else 503)
 
 
 @app.api_route("/monai/{path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"])
@@ -1041,6 +1056,29 @@ async def generation_output_file(
     )
 
 
+@app.get("/annotation-files/{case_token}/{reviewer_token}/{condition}/{filename}")
+async def annotation_file(
+    case_token: str,
+    reviewer_token: str,
+    condition: Condition,
+    filename: str,
+) -> FileResponse:
+    root = OUTPUT_DIR.resolve()
+    path = (
+        OUTPUT_DIR / case_token / "annotations" / reviewer_token / condition / filename
+    ).resolve()
+    if root not in path.parents:
+        raise HTTPException(status_code=400, detail="invalid annotation path")
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="annotation file not found")
+    return FileResponse(
+        path,
+        media_type="application/gzip",
+        filename=filename,
+        headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"},
+    )
+
+
 @app.get("/results/{case_id}")
 async def result_manifest(
     case_id: str,
@@ -1055,18 +1093,20 @@ async def result_manifest(
 
 
 @app.get("/cases")
-async def list_cases() -> list[dict[str, Any]]:
+async def list_cases(condition: Condition = Query("C2")) -> list[dict[str, Any]]:
     pool = await get_pool()
     await best_effort_sync_cases(pool)
     await reconcile_artifact_records(pool)
     rows = await pool.fetch(
         """
-        SELECT c.case_id, c.patient_id, c.study_uid, c.series_uid, c.condition,
+        SELECT c.case_id, c.patient_id, c.study_uid, c.series_uid, $1::text AS condition,
                s.score, s.band, s.inference_status, s.uncertainty_url, s.segmentation_url
         FROM cases c
-        LEFT JOIN uncertainty_scores s USING (case_id)
+        LEFT JOIN uncertainty_scores s
+          ON s.case_id = c.case_id AND s.condition = $1
         ORDER BY c.created_at DESC
-        """
+        """,
+        condition,
     )
     return [dict(row) for row in rows]
 
@@ -1108,6 +1148,7 @@ async def worklist(
     policy: Policy = "fifo",
     limit: int = Query(50, ge=1, le=500),
     reviewer_id: str | None = None,
+    condition: Condition = Query("C2"),
 ) -> list[dict[str, Any]]:
     _ALLOWED_ORDERS = frozenset({
         "fifo",
@@ -1132,15 +1173,18 @@ async def worklist(
                s.score, s.band AS score_band, s.inference_status,
                COALESCE(st.status, 'ready') AS status
         FROM cases c
-        LEFT JOIN uncertainty_scores s USING (case_id)
+        LEFT JOIN uncertainty_scores s
+          ON s.case_id = c.case_id AND s.condition = $3
         LEFT JOIN annotation_status st
           ON st.case_id = c.case_id
+         AND st.condition = $3
          AND ($1::text IS NULL OR st.reviewer_id = $1)
         ORDER BY {order_sql}
         LIMIT $2
         """,
         reviewer_id,
         limit,
+        condition,
     )
     return [dict(row) for row in rows]
 
@@ -1183,7 +1227,6 @@ async def infer(case_id: str, request: InferRequest | None = None) -> dict[str, 
     condition = request.condition if request else case["condition"]
     if condition is None:
         condition = DEFAULT_CASE_CONDITION
-    await set_case_condition(pool, case_id, condition)
     if request and request.force:
         raise HTTPException(
             status_code=403,
@@ -1233,9 +1276,9 @@ async def infer(case_id: str, request: InferRequest | None = None) -> dict[str, 
     await pool.execute(
         """
         INSERT INTO uncertainty_scores
-          (case_id, score, band, inference_status, uncertainty_url, segmentation_url, updated_at)
-        VALUES ($1, $2, $3, $4, $5, $6, NOW())
-        ON CONFLICT (case_id) DO UPDATE
+          (case_id, condition, score, band, inference_status, uncertainty_url, segmentation_url, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+        ON CONFLICT (case_id, condition) DO UPDATE
         SET score = EXCLUDED.score,
             band = EXCLUDED.band,
             inference_status = EXCLUDED.inference_status,
@@ -1244,6 +1287,7 @@ async def infer(case_id: str, request: InferRequest | None = None) -> dict[str, 
             updated_at = NOW()
         """,
         case_id,
+        condition,
         cached["score"],
         cached["band"],
         cached.get("inference_status", "completed"),
@@ -1296,9 +1340,8 @@ async def update_status(
           CASE WHEN $4 <> 'in_review' THEN NOW() ELSE NULL END,
           NOW()
         )
-        ON CONFLICT (case_id, reviewer_id) DO UPDATE
-        SET condition = EXCLUDED.condition,
-            status = EXCLUDED.status,
+        ON CONFLICT (case_id, reviewer_id, condition) DO UPDATE
+        SET status = EXCLUDED.status,
             started_at = COALESCE(annotation_status.started_at, EXCLUDED.started_at, NOW()),
             ended_at = CASE
               WHEN EXCLUDED.status = 'in_review' THEN NULL
@@ -1316,18 +1359,23 @@ async def update_status(
 
 
 @app.get("/annotations/{case_id}/{reviewer_id}")
-async def get_annotation(case_id: str, reviewer_id: str) -> dict[str, Any]:
+async def get_annotation(
+    case_id: str,
+    reviewer_id: str,
+    condition: Condition,
+) -> dict[str, Any]:
     pool = await get_pool()
     row = await pool.fetchrow(
         """
         SELECT *
         FROM uncertainty_annotations
-        WHERE case_id = $1 AND reviewer_id = $2
+        WHERE case_id = $1 AND reviewer_id = $2 AND condition = $3
         ORDER BY created_at DESC
         LIMIT 1
         """,
         case_id,
         reviewer_id,
+        condition,
     )
     if row is None:
         raise HTTPException(status_code=404, detail="annotation not found")
@@ -1344,40 +1392,77 @@ async def submit_annotation(
 ) -> dict[str, Any]:
     if status != "rejected" and mask is None:
         raise HTTPException(status_code=422, detail=f"status '{status}' requires a mask upload")
+    if condition == "C0" and status == "accepted":
+        raise HTTPException(status_code=422, detail="C0 has no AI mask to accept")
 
     mask_bytes = await mask.read() if mask is not None else b""
-    storage_url = f"local://uncertainty_annotations/{case_id}/{reviewer_id}/{status}"
+    annotation_path: Path | None = None
+    storage_url: str | None = None
     ai_foreground_voxels = 0
     reviewer_foreground_voxels = 0
     edit_voxel_count = 0
     edit_fraction = 0.0
+    if mask is not None:
+        try:
+            validate_nifti_bytes(mask_bytes, "reviewer annotation")
+        except HTTPException as exc:
+            raise HTTPException(status_code=422, detail=exc.detail) from exc
+        filename = f"{uuid.uuid4()}.nii.gz"
+        case_token = safe_file_case_id(case_id)
+        reviewer_token = quote(reviewer_id, safe="")
+        annotation_path = (
+            OUTPUT_DIR / case_token / "annotations" / reviewer_token / condition / filename
+        )
+        annotation_path.parent.mkdir(parents=True, exist_ok=True)
+        temp_path = _write_temp_artifact(annotation_path, mask_bytes)
+        os.replace(temp_path, annotation_path)
+        storage_url = (
+            f"{PUBLIC_UNCERTAINTY_SERVICE_URL}/annotation-files/"
+            f"{case_token}/{reviewer_token}/{condition}/{filename}"
+        )
+        try:
+            reviewer_foreground_voxels = int((load_nifti(annotation_path) > 0).sum())
+            edit_voxel_count = reviewer_foreground_voxels
+            if condition in ("C1", "C2"):
+                generation = current_generation_path(case_id, condition)
+                if generation is None:
+                    raise HTTPException(
+                        status_code=409,
+                        detail=f"no validated {condition} AI segmentation exists for diff scoring",
+                    )
+                diff = diff_files(annotation_path, generation / "segmentation.nii.gz")
+                edit_voxel_count = diff.edit_voxel_count
+                ai_foreground_voxels = diff.ai_foreground_voxels
+                reviewer_foreground_voxels = diff.reviewer_foreground_voxels
+                edit_fraction = diff.edit_fraction_of_ai_foreground
+        except Exception:
+            annotation_path.unlink(missing_ok=True)
+            raise
     pool = await get_pool()
-    row = await pool.fetchrow(
-        """
-        INSERT INTO uncertainty_annotations
-          (case_id, reviewer_id, condition, status, storage_url, mask_filename,
-           mask_content_type, mask_size_bytes, edit_voxel_count,
-           ai_foreground_voxels, reviewer_foreground_voxels,
-           edit_fraction_of_ai_foreground)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-        RETURNING case_id, reviewer_id, condition, storage_url,
-                  edit_voxel_count, ai_foreground_voxels,
-                  reviewer_foreground_voxels,
-                  edit_fraction_of_ai_foreground,
-                  created_at AS submitted_at
-        """,
-        case_id,
-        reviewer_id,
-        condition,
-        status,
-        storage_url,
-        mask.filename if mask is not None else None,
-        mask.content_type if mask is not None else None,
-        len(mask_bytes),
-        edit_voxel_count,
-        ai_foreground_voxels,
-        reviewer_foreground_voxels,
-        edit_fraction,
-    )
+    try:
+        row = await pool.fetchrow(
+            """
+            INSERT INTO uncertainty_annotations
+              (case_id, reviewer_id, condition, status, storage_url, mask_filename,
+               mask_content_type, mask_size_bytes, edit_voxel_count,
+               ai_foreground_voxels, reviewer_foreground_voxels,
+               edit_fraction_of_ai_foreground)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+            RETURNING case_id, reviewer_id, condition, storage_url,
+                      edit_voxel_count, ai_foreground_voxels,
+                      reviewer_foreground_voxels,
+                      edit_fraction_of_ai_foreground,
+                      created_at AS submitted_at
+            """,
+            case_id, reviewer_id, condition, status, storage_url,
+            annotation_path.name if annotation_path is not None else None,
+            mask.content_type if mask is not None else None, len(mask_bytes),
+            edit_voxel_count, ai_foreground_voxels,
+            reviewer_foreground_voxels, edit_fraction,
+        )
+    except Exception:
+        if annotation_path is not None:
+            annotation_path.unlink(missing_ok=True)
+        raise
     await update_status(case_id, reviewer_id, StatusUpdate(condition=condition, status=status))
     return dict(row)

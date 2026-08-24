@@ -23,9 +23,9 @@ Complete documentation for all REST API endpoints across the Uncertainty Annotat
 
 ## Uncertainty Service API
 
-**Base URL**: `http://localhost:58050`
+**Base URL**: `http://localhost:8043/uncertainty`
 
-The uncertainty service is a FastAPI application that orchestrates AI inference, worklist prioritisation, event logging, annotation submission, and calibration analysis. All endpoints are documented in OpenAPI at `http://localhost:58050/docs`.
+The uncertainty service is a FastAPI application that orchestrates AI inference, worklist prioritisation, event logging, annotation submission, and calibration analysis. All endpoints are documented in OpenAPI at `http://localhost:8043/uncertainty/docs`.
 
 ### Health
 

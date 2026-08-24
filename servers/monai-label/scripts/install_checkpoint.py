@@ -8,8 +8,6 @@ import sys
 import urllib.request
 from pathlib import Path
 
-import torch
-
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from lib.checkpoint import (  # noqa: E402
@@ -44,13 +42,24 @@ def download_checkpoint(destination: Path) -> None:
 def install(checkpoint_path: Path, lock_path: Path) -> CheckpointLock:
     checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
     lock_path.parent.mkdir(parents=True, exist_ok=True)
+    if checkpoint_path.is_file() and lock_path.is_file():
+        try:
+            verified = verify_checkpoint(checkpoint_path, lock_path)
+            print("checkpoint already installed and verified; reusing local file")
+            return verified
+        except CheckpointIntegrityError:
+            # Preserve the installed file until a replacement has downloaded
+            # and passed the committed lock; os.replace below is atomic.
+            pass
     download_path = checkpoint_path.with_name(".checkpoint.download")
     download_path.unlink(missing_ok=True)
 
     try:
         download_checkpoint(download_path)
-        # Reject truncated or non-PyTorch payloads before publication.
-        torch.load(download_path, map_location="cpu")
+        # The committed lock provides the authoritative byte size and SHA-256.
+        # Avoid importing PyTorch here: it lives in the MONAI container and
+        # requiring it on the host would turn a small downloader into a large
+        # additional toolchain installation.
         measured = CheckpointLock(
             model_id=OFFICIAL_MODEL_ID,
             model_version=OFFICIAL_MODEL_VERSION,

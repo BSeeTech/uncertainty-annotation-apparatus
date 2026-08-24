@@ -68,20 +68,21 @@ ALLOC = [
 ALLOC = {R(RS + i): a for i, a in enumerate(ALLOC)}
 CONDITIONS = ["C0", "C1", "C2"]
 
-# ── Condition order (counterbalanced: document's schedule order) ──
-# From the schedule: R01 does C0 first, then C1, then C2
-# But some reviewers start with different conditions based on schedule
+# ── Condition order (balanced six-sequence crossover) ─────────────
 CONDITION_ORDER = {}
+ORDER_SEQUENCES = [
+    ("C0", "C1", "C2"),
+    ("C0", "C2", "C1"),
+    ("C1", "C0", "C2"),
+    ("C1", "C2", "C0"),
+    ("C2", "C0", "C1"),
+    ("C2", "C1", "C0"),
+] * 2
 SCHEDULE = [
-    (0,"C0",0,True), (1,"C0",0,False),
-    (2,"C0",1,True), (0,"C1",1,True), (3,"C0",1,False), (1,"C1",1,False),
-    (4,"C0",2,True), (2,"C1",2,True), (5,"C0",2,False), (3,"C1",2,False),
-    (0,"C2",3,True), (4,"C1",3,True), (1,"C2",3,False), (5,"C1",3,False),
-    (2,"C2",4,True), (6,"C0",4,True), (3,"C2",4,False), (7,"C0",4,False),
-    (4,"C2",7,True), (6,"C1",7,True), (5,"C2",7,False), (7,"C1",7,False),
-    (6,"C2",8,True), (8,"C0",8,True), (9,"C0",8,True), (10,"C0",8,True), (11,"C0",8,True),
-    (7,"C2",8,False), (8,"C1",8,False), (9,"C1",8,False), (10,"C1",8,False), (11,"C1",8,False),
-    (8,"C2",8,False), (9,"C2",8,False), (10,"C2",8,False), (11,"C2",8,False),
+    (reviewer_index, condition, (reviewer_index // 6) * 7 + order_index * 2,
+     reviewer_index % 2 == 0)
+    for reviewer_index, sequence in enumerate(ORDER_SEQUENCES)
+    for order_index, condition in enumerate(sequence)
 ]
 
 # Determine condition_order: 1=first session for that reviewer, 2=second, 3=third
@@ -194,7 +195,7 @@ for rev in REVIEWERS:
             active_ratio = random.uniform(0.70, 0.90)
             active_time = int(total_elapsed * active_ratio)
 
-            heatmap_exposed = cond in ("C1", "C2")
+            heatmap_exposed = cond == "C2"
             heatmap_used = heatmap_exposed and random.random() < 0.65
 
             attempt_rows.append((

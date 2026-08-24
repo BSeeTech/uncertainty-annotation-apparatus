@@ -1,10 +1,52 @@
 import modeManifest, {
   getCommandsModule,
   id,
+  installReviewerTelemetry,
   modeFactory,
   resolveSegmentationIdForReference,
 } from '../index';
 import * as cornerstone from '@cornerstonejs/core';
+import * as cornerstoneTools from '@cornerstonejs/tools';
+
+describe('review telemetry bridge', () => {
+  it('subscribes core and segmentation events on the Cornerstone core target', () => {
+    const service = {
+      logViewerEvent: jest.fn(),
+      recordSegmentationChange: jest.fn(),
+    } as any;
+    installReviewerTelemetry(service);
+
+    cornerstone.eventTarget.dispatchEvent(new CustomEvent(
+      cornerstone.Enums.Events.STACK_NEW_IMAGE,
+      { detail: { viewportId: 'vp1', imageIndex: 4 } },
+    ));
+    cornerstone.eventTarget.dispatchEvent(new CustomEvent(
+      cornerstone.Enums.Events.CAMERA_MODIFIED,
+      { detail: { viewportId: 'vp1' } },
+    ));
+    cornerstone.eventTarget.dispatchEvent(new CustomEvent(
+      cornerstoneTools.Enums.Events.SEGMENTATION_DATA_MODIFIED,
+      { detail: { segmentationId: 'seg1' } },
+    ));
+    cornerstone.eventTarget.dispatchEvent(new CustomEvent(
+      cornerstoneTools.Enums.Events.SEGMENTATION_REPRESENTATION_MODIFIED,
+      { detail: { segmentationId: 'seg1', type: 'Labelmap' } },
+    ));
+
+    expect(service.logViewerEvent).toHaveBeenCalledWith('slice_change', {
+      viewportId: 'vp1', imageIndex: 4,
+    });
+    expect(service.logViewerEvent).toHaveBeenCalledWith('viewport_change', {
+      viewportId: 'vp1',
+    });
+    expect(service.recordSegmentationChange).toHaveBeenCalledWith({
+      segmentationId: 'seg1', modifiedSlicesToUse: null,
+    });
+    expect(service.logViewerEvent).toHaveBeenCalledWith('structure_focus', {
+      segmentationId: 'seg1', type: 'Labelmap',
+    });
+  });
+});
 
 describe('mode factory', () => {
   it('exports an OHIF mode manifest as the default export', () => {

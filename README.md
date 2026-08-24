@@ -8,7 +8,14 @@
 [![Node 22+](https://img.shields.io/badge/Node-22+-green.svg)](https://nodejs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6.svg)](https://typescriptlang.org)
 
-A web-based, collaborative medical imaging annotation platform featuring **real-time collaboration**, **AI-assisted segmentation with uncertainty estimation**, and **high-performance DICOM viewing**.
+A research prototype for collaborative medical-image annotation, combining
+**real-time collaboration**, **AI-assisted segmentation with uncertainty
+estimation**, and **DICOM viewing**. It is not a medical device and is not for
+clinical diagnosis or treatment.
+
+**New here? Start with [START-HERE.md](START-HERE.md).** It gives a
+browser-only path for reviewers, a demonstration path for operators, and a
+technical path for installers and developers.
 
 The platform bridges the gap between basic desktop viewers and expensive enterprise PACS systems, targeting:
 
@@ -91,16 +98,16 @@ See [DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md) for a deeper walkthrough of each se
 - **Git**
 - **8GB+ RAM** recommended (MONAI Label is memory-intensive)
 
-### One-Command Setup
+### Local setup
 
-```bash
+```powershell
 # Clone the repository
 git clone https://github.com/BSeeTech/uncertainty-annotation-apparatus.git
-cd uncertainty-annotation-apparatus
+Set-Location uncertainty-annotation-apparatus
 
 # Copy environment configuration
-cp .env.example .env
-# Edit .env to set POSTGRES_PASSWORD
+Copy-Item .env.example .env
+# The evaluation-only database password is already configured
 
 # Provision the MONAI Label checkpoint (downloads the official spleen UNet)
 python servers/monai-label/scripts/install_checkpoint.py
@@ -109,15 +116,19 @@ python servers/monai-label/scripts/install_checkpoint.py
 docker compose up -d
 
 # Start OHIF Viewer (in a separate terminal)
-cd ohif-viewer
+Set-Location ohif-viewer
 
 # Configure the viewer (optional but recommended): the stock fallback already
 # points at the local stack, but this makes it explicit.
-cd platform/app && cp .env.example .env && cd ../..
+Set-Location platform/app
+Copy-Item .env.example .env
+Set-Location ../..
 
 yarn install
 yarn dev
 ```
+
+Bash users can substitute `cd` for `Set-Location` and `cp` for `Copy-Item`.
 
 ### Access Points
 
@@ -125,8 +136,9 @@ yarn dev
 |---------|-----|-------------|
 | OHIF Viewer | http://localhost:3000 | Main application interface |
 | Orthanc | http://localhost:8042 | PACS administration |
-| MONAI Label | http://localhost:8044 | AI segmentation (via proxy) |
-| Uncertainty Service | http://localhost:58050/docs | Worklist, inference orchestration, events |
+| MONAI Label proxy | http://localhost:8044 | Browser-facing AI segmentation proxy |
+| MONAI Label direct API | http://localhost:8000/docs | Developer diagnostics |
+| Uncertainty Service | http://localhost:8043/uncertainty/docs | Worklist, inference orchestration, events |
 | Collaboration API | http://localhost:3001 | REST API & WebSocket |
 
 ### Loading example data (for testers, including non-technical ones)
@@ -207,9 +219,11 @@ uncertainty-annotation-apparatus/
 
 | Document | Description |
 |----------|-------------|
+| [Start Here](START-HERE.md) | Choose the reviewer, demonstration, or developer path |
 | [Installation Guide](INSTALL.md) | Detailed setup instructions |
 | [User Guide](USER_GUIDE.md) | End-user documentation |
 | [Developer Guide](DEVELOPER_GUIDE.md) | Technical documentation — extensions, conditions, adapters |
+| [Thesis-to-Repository Map](THESIS-IMPLEMENTATION-MAP.md) | Research claims, current modules, and snapshot differences |
 | [API Reference](API.md) | REST & WebSocket API docs (including uncertainty service) |
 | [Getting Started](GETTING-STARTED.md) | Quickstart after installation |
 | [Troubleshooting](TROUBLESHOOTING.md) | Common issues & solutions |
@@ -223,8 +237,8 @@ scaffolding toward a factorial extension and **cannot currently run a session** 
 
 | Param | Behaviour | `attachHeatmap` | `importAiMask` | Worklist Policy |
 |-------|-----------|:---:|:---:|:---:|
-| `C0` | Manual annotation from scratch | ❌ | ❌ | default (high-uncertainty first) |
-| `C1` | AI pre-annotation, no heatmap | ❌ | ✅ | default (high-uncertainty first) |
+| `C0` | Manual annotation from scratch | ❌ | ❌ | FIFO (condition-blinded) |
+| `C1` | AI pre-annotation, no heatmap | ❌ | ✅ | FIFO (condition-blinded) |
 | `C2` | AI + entropy heatmap + prioritised | ✅ | ✅ | default (high-uncertainty first) |
 | `C3` | AI + edge-placebo overlay + prioritised | ✅ (Sobel) | ✅ | — not wired |
 | `C4` | AI + prioritised worklist, no heatmap | ❌ | ✅ | — not wired |
@@ -244,9 +258,9 @@ recomputes condition checks internally rather than consuming the plan output, an
 test exercises C3–C5. They are the documented head start on a six-arm factorial extension
 of the C0–C2 design, not a usable capability.
 
-**Worklist policy.** The client requests the server's default policy (`high_first`) in every
-condition; the FIFO and randomised orderings exist server-side but are not selectable by
-condition.
+**Worklist policy.** C0 and C1 always request FIFO ordering and hide uncertainty scores.
+C2 defaults to highest-uncertainty-first and exposes the policy selector. The condition is
+also included in every worklist request, so scores and review status remain condition-specific.
 
 ## 🧪 Distributed Reviewer Deployment
 
@@ -278,14 +292,14 @@ Key environment variables in `.env`:
 ```bash
 # Database
 POSTGRES_USER=medical_imaging
-POSTGRES_PASSWORD=<your-strong-password>
+POSTGRES_PASSWORD=uaa-evaluation-only
 POSTGRES_DB=annotations
 
 # CORS (add all client origins)
-ALLOWED_ORIGINS=http://localhost:3000,http://localhost:8043,http://localhost:8044,http://localhost:3001,http://localhost:58050
+ALLOWED_ORIGINS=http://localhost:3000,http://localhost:8043,http://localhost:8044,http://localhost:3001,http://localhost:8043/uncertainty
 
 # Uncertainty service
-UNCERTAINTY_SERVICE_URL=http://localhost:58050
+UNCERTAINTY_SERVICE_URL=http://localhost:8043/uncertainty
 DEFAULT_CASE_CONDITION=C2
 
 # Performance (adjust for your hardware)
@@ -295,23 +309,29 @@ CUDA_VISIBLE_DEVICES=-1  # CPU-only mode
 
 ## 🧪 Testing
 
-```bash
+```powershell
 # Verify all services
-./scripts/verify-system.ps1
+.\scripts\verify-system.ps1
 
 # Run uncertainty service tests
-cd servers/uncertainty-service && python -m pytest
+Push-Location servers/uncertainty-service
+python -m pytest
+Pop-Location
 
 # Run MONAI Label tests
-cd servers/monai-label && python -m pytest tests/
+Push-Location servers/monai-label
+python -m pytest tests/
+Pop-Location
 
 # Run OHIF extension tests
-cd ohif-viewer && npx jest --testPathPattern='extension-uncertainty'
+Push-Location ohif-viewer
+yarn workspace @thesis/extension-uncertainty test --runInBand
+Pop-Location
 
 # Check service health
-curl http://localhost:3001/health
-curl http://localhost:8042/system
-curl http://localhost:58050/health
+Invoke-RestMethod http://localhost:3001/health
+Invoke-RestMethod http://localhost:8042/system
+Invoke-RestMethod http://localhost:8043/uncertainty/health/ready
 ```
 
 ## 🤝 Contributing

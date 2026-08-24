@@ -24,7 +24,7 @@ pip install -r evaluation/ct-spleen/requirements.txt
 python evaluation/ct-spleen/run_evaluation.py `
   --cases evaluation/ct-spleen/cases.json `
   --references evaluation/ct-spleen/data `
-  --service http://localhost:58050 `
+  --service http://localhost:8043/uncertainty `
   --output evaluation/ct-spleen/results/experimental-results.json
 
 python evaluation/ct-spleen/render_report.py `
@@ -54,7 +54,7 @@ to replication. **The whole sequence assumes Docker Desktop is running.**
 git clone https://github.com/BSeeTech/uncertainty-annotation-apparatus.git
 cd uncertainty-annotation-apparatus
 cp .env.example .env
-# EDIT .env: set POSTGRES_PASSWORD to a strong password
+# The evaluation-only database password is already configured
 
 # 2. Provision the MONAI Label checkpoint (official spleen UNet)
 python servers/monai-label/scripts/install_checkpoint.py
@@ -90,19 +90,19 @@ python scripts/prepare-msd-for-orthanc.py \
 
 # 7. Register the five MSD cases with the uncertainty service. Use the
 #    study_uid as case_id (the evaluator derives case_id from study_uid).
-curl -X POST http://localhost:58050/cases \
+curl -X POST http://localhost:8043/uncertainty/cases \
   -H "Content-Type: application/json" \
   -d '{"case_id":"1.2.826.0.1.3680043.8.274.1.1.248825330.63900.8824652402.697","patient_id":"patient001","study_uid":"1.2.826.0.1.3680043.8.274.1.1.248825330.63900.8824652402.697","series_uid":"1.2.826.0.1.3680043.8.274.1.1.784017185.94518.4538589876.211","condition":"C2"}'
-curl -X POST http://localhost:58050/cases \
+curl -X POST http://localhost:8043/uncertainty/cases \
   -H "Content-Type: application/json" \
   -d '{"case_id":"1.2.826.0.1.3680043.8.274.1.1.786988705.17387.8717949376.670","patient_id":"patient002","study_uid":"1.2.826.0.1.3680043.8.274.1.1.786988705.17387.8717949376.670","series_uid":"1.2.826.0.1.3680043.8.274.1.1.217746236.48460.8396164103.990","condition":"C2"}'
-curl -X POST http://localhost:58050/cases \
+curl -X POST http://localhost:8043/uncertainty/cases \
   -H "Content-Type: application/json" \
   -d '{"case_id":"1.2.826.0.1.3680043.8.274.1.1.440932339.25736.8771857202.211","patient_id":"patient003","study_uid":"1.2.826.0.1.3680043.8.274.1.1.440932339.25736.8771857202.211","series_uid":"1.2.826.0.1.3680043.8.274.1.1.323164088.69886.2011085890.421","condition":"C2"}'
-curl -X POST http://localhost:58050/cases \
+curl -X POST http://localhost:8043/uncertainty/cases \
   -H "Content-Type: application/json" \
   -d '{"case_id":"1.2.826.0.1.3680043.8.274.1.1.978964378.20833.5934797847.233","patient_id":"patient004","study_uid":"1.2.826.0.1.3680043.8.274.1.1.978964378.20833.5934797847.233","series_uid":"1.2.826.0.1.3680043.8.274.1.1.435486677.64603.2847829754.141","condition":"C2"}'
-curl -X POST http://localhost:58050/cases \
+curl -X POST http://localhost:8043/uncertainty/cases \
   -H "Content-Type: application/json" \
   -d '{"case_id":"1.2.826.0.1.3680043.8.274.1.1.521426503.86857.9032450883.677","patient_id":"patient005","study_uid":"1.2.826.0.1.3680043.8.274.1.1.521426503.86857.9032450883.677","series_uid":"1.2.826.0.1.3680043.8.274.1.1.956292836.56138.4474170934.471","condition":"C2"}'
 
@@ -120,7 +120,7 @@ pip install -r evaluation/ct-spleen/requirements.txt   # host python, one-time
 python evaluation/ct-spleen/run_evaluation.py `
   --cases evaluation/ct-spleen/cases.json `
   --references evaluation/ct-spleen/data `
-  --service http://localhost:58050 `
+  --service http://localhost:8043/uncertainty `
   --output evaluation/ct-spleen/results/experimental-results.json
 python evaluation/ct-spleen/render_report.py `
   --input evaluation/ct-spleen/results/experimental-results.json `
@@ -258,4 +258,4 @@ docker compose restart monai-label
 > **Note:** NIfTI files cannot be uploaded to Orthanc. Orthanc only accepts DICOM. If you need images
 > in Orthanc (e.g. to browse them in the OHIF viewer at `localhost:3000`), convert NIfTI → DICOM
 > first using a tool like `plastimatch convert` or `itkimage2segimage`, then upload via the Orthanc
-> UI at `http://localhost:8042` and run `curl -X POST http://localhost:58050/cases/sync`.
+> UI at `http://localhost:8042` and run `curl -X POST http://localhost:8043/uncertainty/cases/sync`.

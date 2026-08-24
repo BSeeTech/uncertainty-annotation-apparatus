@@ -15,6 +15,7 @@ class AnnotationDiff:
 
     edit_voxel_count: int
     ai_foreground_voxels: int
+    reviewer_foreground_voxels: int
     edit_fraction_of_ai_foreground: float
 
 
@@ -45,6 +46,7 @@ def diff_arrays(
 
     edit_voxels = int(np.sum(r_bin != a_bin))
     ai_fg = int(np.sum(a_bin))
+    reviewer_fg = int(np.sum(r_bin))
 
     if ai_fg > 0:
         edit_frac = edit_voxels / ai_fg
@@ -54,15 +56,13 @@ def diff_arrays(
     return AnnotationDiff(
         edit_voxel_count=edit_voxels,
         ai_foreground_voxels=ai_fg,
+        reviewer_foreground_voxels=reviewer_fg,
         edit_fraction_of_ai_foreground=edit_frac,
     )
 
 
-def diff_files(
-    reviewer_path: str | Path,
-    ai_path: str | Path,
-) -> AnnotationDiff:
-    """Load two NIfTI volumes from disk and compute their diff."""
+def load_nifti(path: str | Path) -> np.ndarray:
+    """Load the scalar array from a NIfTI-1 file used by the apparatus."""
     import gzip
     import struct
     from array import array
@@ -93,6 +93,14 @@ def diff_files(
             vals.byteswap()
         return np.array(vals, dtype=np.float64).reshape(shape)
 
-    reviewer_arr = _load(Path(reviewer_path))
-    ai_arr = _load(Path(ai_path))
+    return _load(Path(path))
+
+
+def diff_files(
+    reviewer_path: str | Path,
+    ai_path: str | Path,
+) -> AnnotationDiff:
+    """Load two NIfTI volumes from disk and compute their diff."""
+    reviewer_arr = load_nifti(reviewer_path)
+    ai_arr = load_nifti(ai_path)
     return diff_arrays(reviewer_arr, ai_arr)

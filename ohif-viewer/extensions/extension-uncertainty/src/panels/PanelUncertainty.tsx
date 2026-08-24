@@ -99,6 +99,20 @@ export const PanelUncertainty: React.FC<PanelUncertaintyProps> = ({ service }) =
             disabled={disabled}
             className="w-full"
           />
+          <div className="mt-1.5 grid grid-cols-3 gap-1" aria-label="Heatmap opacity presets">
+            {[0, 0.5, 1].map(value => (
+              <button
+                key={value}
+                type="button"
+                data-testid={`heatmap-opacity-${Math.round(value * 100)}`}
+                disabled={disabled}
+                onClick={() => service.setHeatmapOpacity(value)}
+                className="rounded border border-white/20 px-1 py-1 text-xs hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {Math.round(value * 100)}%
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Inference-status warning: show for any condition with heatmap */}

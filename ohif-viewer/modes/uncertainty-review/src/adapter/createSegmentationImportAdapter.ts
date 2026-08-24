@@ -383,6 +383,13 @@ function buildSegmentationDescriptor(args: {
     segments,
     activeSegmentIndex: firstSegmentIndex,
     segmentCount: args.segmentIndices.length,
+    segmentsLocked: [],
+    cachedStats: {},
+    displayText: [],
+    // OHIF deliberately hides non-hydrated segmentations from its panel and
+    // active-segmentation APIs.  The imported volume is fully materialised at
+    // this point, so mark it hydrated to expose the normal brush/erase UI.
+    hydrated: true,
     isActive: true,
     isVisible: true,
   };
@@ -393,16 +400,22 @@ function buildSegments(indices: number[]): Any[] {
   const segments: Any[] = Array.from({ length: max + 1 }, (_, i) => ({
     segmentIndex: i,
     label: i === 0 ? 'Background' : `AI Segment ${i}`,
-    active: i === indices[0],
-    locked: false,
+    color: i === 0 ? [0, 0, 0] : [255, 0, 0],
+    opacity: 255,
+    isVisible: true,
+    isLocked: false,
+    displayText: [],
     cachedStats: {},
   }));
   if (segments.length === 1) {
     segments.push({
       segmentIndex: 1,
       label: 'AI Segment 1',
-      active: true,
-      locked: false,
+      color: [255, 0, 0],
+      opacity: 255,
+      isVisible: true,
+      isLocked: false,
+      displayText: [],
       cachedStats: {},
     });
   }

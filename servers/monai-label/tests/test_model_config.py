@@ -148,17 +148,18 @@ class SpleenModelConfigTest(unittest.TestCase):
                 )
 
     def test_task_configs_construct_from_verified_checkpoint(self):
+        model_dir = str(Path(__file__).resolve().parents[1] / "model")
         deterministic = Segmentation()
         deterministic.init(
             name="segmentation",
-            model_dir="/workspace/app/model",
+            model_dir=model_dir,
             conf={},
             planner=None,
         )
         stochastic = MCDropoutSeg()
         stochastic.init(
             name="mcdropout_seg",
-            model_dir="/workspace/app/model",
+            model_dir=model_dir,
             conf={},
             planner=None,
         )

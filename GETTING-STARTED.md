@@ -1,6 +1,10 @@
 # Getting Started Guide
 
-## 🎉 Your Platform is Running!
+## Your platform is running
+
+This guide begins after an installer has started both the Docker services and
+the OHIF development server. If that has not happened, begin with
+[START-HERE.md](START-HERE.md) and [INSTALL.md](INSTALL.md).
 
 You now have a fully functional medical imaging annotation platform with:
 - ✅ **PostgreSQL** — Database for annotations and events
@@ -13,18 +17,18 @@ You now have a fully functional medical imaging annotation platform with:
 
 ## 👩‍⚕️ For radiologists and non-technical testers
 
-You do **not** need to understand any of the commands in this document. Ask the
-person who installed the platform to run **one script** that prepares everything
-for you, then you only use the browser:
+You do **not** need to run commands as a reviewer. Ask the installer to prepare
+the demonstration data, then use only the browser. The installer runs:
 
 ```
 powershell -ExecutionPolicy Bypass -File scripts/setup-demo-data.ps1
 ```
 
-That script downloads the example data (about 1.5 GB — this is the only step
-that takes time, up to 30+ minutes on a slow connection, and it resumes if
-interrupted), converts it, and prepares the AI model. When it finishes it prints
-a green "Demo data is ready!" message.
+That script downloads about 1.5 GB, installs two Python packages, requires
+`plastimatch`, converts the images, and runs five MC Dropout inferences. The
+download resumes if interrupted; CPU inference takes roughly 20 minutes in
+addition to download and conversion time. When it finishes it prints a green
+"Demo data is ready!" message.
 
 Then, in your browser:
 
@@ -65,8 +69,9 @@ docker logs medical-uncertainty --tail 20
 |---------|-----|---------|
 | **OHIF Viewer** | http://localhost:3000 | Main annotation interface |
 | **Orthanc Admin** | http://localhost:8042/app/explorer.html | PACS management |
-| **Uncertainty API** | http://localhost:58050/docs | API docs (OpenAPI/Swagger) |
-| **MONAI Label** | http://localhost:8000/docs | Inference API docs |
+| **Uncertainty API** | http://localhost:8043/uncertainty/docs | API docs (OpenAPI/Swagger) |
+| **MONAI Label direct API** | http://localhost:8000/docs | Developer diagnostics |
+| **MONAI Label proxy** | http://localhost:8044 | Browser-facing route |
 | **PostgreSQL** | `localhost:5432` | Database (user: `medical_imaging`) |
 
 ---
@@ -109,13 +114,15 @@ http://localhost:3000/uncertainty-review?reviewer=R01&condition=C2
 ### 2. Use the Annotation Tools
 - **Edit** — Use OHIF's standard segmentation tools (brush, scissors, threshold)
 - **Inspect** — The heatmap colours indicate predictive uncertainty:
-  - 🟢 Low entropy (model is confident)
-  - 🟡 Medium entropy
-  - 🔴 High entropy (model is uncertain — likely needs review)
+  - Darker regions: lower predictive entropy
+  - Brighter yellow regions: higher predictive entropy and worth closer review
+
+The heatmap is an uncertainty signal, not an error map. A bright region may be
+correct, and a dark region may still contain a model error.
 
 ### 3. Adjust the Heatmap
 - Use the **Uncertainty Controls** panel to:
-  - Toggle heatmap visibility (`h` keyboard shortcut)
+  - Toggle heatmap visibility (`u` keyboard shortcut)
   - Adjust opacity with the slider
 - The heatmap updates in real-time as you scroll through slices
 
@@ -126,7 +133,7 @@ Use the **Submission** panel to:
 - **Reject** — AI mask is unusable; escalate for expert review
 
 ### 5. Move to the Next Case
-The worklist updates automatically. Click the next case or use the `→` key.
+The worklist updates automatically. Click the next case in the worklist.
 
 ---
 
@@ -142,7 +149,7 @@ The worklist updates automatically. Click the next case or use the `→` key.
 
 Once uploaded, sync cases to the uncertainty service:
 ```bash
-curl -X POST http://localhost:58050/cases/sync
+curl -X POST http://localhost:8043/uncertainty/cases/sync
 ```
 
 ---

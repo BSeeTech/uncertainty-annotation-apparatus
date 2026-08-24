@@ -72,6 +72,24 @@ def read_dataset_lock(path: Path) -> dict[str, Any]:
     return values
 
 
+def verify_installed_dataset(
+    output_dir: Path,
+    lock_path: Path,
+) -> dict[str, Any]:
+    """Verify and return a completed selective install without downloading."""
+    expected = read_dataset_lock(lock_path)
+    for relative in sorted(SELECTED_FILES):
+        path = output_dir / relative
+        metadata = expected["files"][relative]
+        if not path.is_file():
+            raise FileNotFoundError(f"installed dataset file missing: {relative}")
+        if path.stat().st_size != metadata["size_bytes"]:
+            raise ValueError(f"installed dataset size mismatch: {relative}")
+        if sha256_file(path) != metadata["sha256"]:
+            raise ValueError(f"installed dataset SHA-256 mismatch: {relative}")
+    return expected
+
+
 def _selected_member(member_name: str) -> tuple[str, str] | None:
     normalized = member_name.replace("\\", "/").lstrip("./")
     parts = normalized.split("/")
@@ -306,6 +324,18 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
+    if args.archive is None and args.lock.is_file():
+        try:
+            lock = verify_installed_dataset(args.output, args.lock)
+            print("dataset already installed and verified; reusing local files")
+            print(f"archive_sha256={lock['archive_sha256']}")
+            print(f"archive_size_bytes={lock['archive_size_bytes']}")
+            print(f"installed_files={len(lock['files'])}")
+            return 0
+        except (FileNotFoundError, ValueError, KeyError):
+            # Missing or invalid local files fall through to the resumable,
+            # lock-verified archive download and atomic extraction path.
+            pass
     archive = args.archive
     delete_archive = False
     if archive is None:
