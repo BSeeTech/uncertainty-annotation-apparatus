@@ -125,3 +125,8 @@ evaluation/ct-spleen/nasa_tlx*.csv
 evaluation/ct-spleen/segmentation_metrics*.csv
 evaluation/ct-spleen/generated-reviewer-data*.sql
 evaluation/ct-spleen/synthetic/
+
+# Local validation runs (large masks, screenshots, and generated fixtures)
+.validation-evidence-current
+validation-evidence/
+evaluation/ct-spleen/nasa-tlx-validation.csv

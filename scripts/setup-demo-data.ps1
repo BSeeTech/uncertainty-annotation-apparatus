@@ -10,7 +10,7 @@
 #   2. Converts the 5 MSD NIfTI volumes to DICOM with the exact UIDs
 #      from cases.json and uploads them to Orthanc
 #   3. Registers the 5 cases with the uncertainty service
-#   4. Generates the C2 inferences (MC Dropout, T=16) — several
+#   4. Generates the C2 inferences (MC Dropout, T=16) - several
 #      minutes per case on CPU
 #
 # Requirements:
@@ -31,21 +31,21 @@ $ErrorActionPreference = "Stop"
 function Write-Step {
     param([string]$Message)
     Write-Host ""
-    Write-Host "──────────────────────────────────────────────────" -ForegroundColor Cyan
-    Write-Host "▶ $Message" -ForegroundColor Cyan
-    Write-Host "──────────────────────────────────────────────────" -ForegroundColor Cyan
+    Write-Host "--------------------------------------------------" -ForegroundColor Cyan
+    Write-Host "> $Message" -ForegroundColor Cyan
+    Write-Host "--------------------------------------------------" -ForegroundColor Cyan
 }
 
 function Write-Ok {
     param([string]$Message)
-    Write-Host "  ✅ $Message" -ForegroundColor Green
+    Write-Host "  [PASS] $Message" -ForegroundColor Green
 }
 
 $RepoRoot = (Get-Location).Path
 
-Write-Host "`n╔═══════════════════════════════════════════════════╗" -ForegroundColor Cyan
-Write-Host "║   🏥 UAA — Demo Data Setup                        ║" -ForegroundColor Cyan
-Write-Host "╚═══════════════════════════════════════════════════╝`n" -ForegroundColor Cyan
+Write-Host "`n====================================================" -ForegroundColor Cyan
+Write-Host "    UAA - Demo Data Setup" -ForegroundColor Cyan
+Write-Host "====================================================`n" -ForegroundColor Cyan
 
 # ------------------------------------------------------------
 # 0. Preflight: stack running?
@@ -53,7 +53,7 @@ Write-Host "╚═════════════════════�
 Write-Step "Checking that the Docker stack is running"
 $services = docker compose ps --format "{{.Name}} {{.Status}}" 2>$null
 if ($LASTEXITCODE -ne 0 -or -not $services) {
-    Write-Host "  ❌ Docker stack is not running." -ForegroundColor Red
+    Write-Host "  [FAIL] Docker stack is not running." -ForegroundColor Red
     Write-Host "     Start Docker Desktop, wait for 'Engine running', then run:"
     Write-Host "       docker compose up -d"
     exit 1
@@ -77,7 +77,7 @@ Write-Ok "Plastimatch is available"
 Write-Step "Ensuring the MONAI Label checkpoint is installed"
 python servers/monai-label/scripts/install_checkpoint.py | Out-Null
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "  ❌ Checkpoint install failed." -ForegroundColor Red
+    Write-Host "  [FAIL] Checkpoint install failed." -ForegroundColor Red
     exit 1
 }
 Write-Ok "Checkpoint ready"
@@ -90,7 +90,7 @@ Write-Host "     This can take 30+ minutes on a slow connection."
 Write-Host "     The installer shows live progress; re-running resumes."
 python evaluation/ct-spleen/install_dataset.py
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "  ❌ Dataset install failed." -ForegroundColor Red
+    Write-Host "  [FAIL] Dataset install failed." -ForegroundColor Red
     exit 1
 }
 Write-Ok "Dataset downloaded and verified"
@@ -117,7 +117,7 @@ Write-Ok "Studies folder ready; MONAI Label restarted"
 Write-Step "Installing Python packages for DICOM conversion"
 python -m pip install --quiet -r evaluation/ct-spleen/requirements.txt
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "  ❌ Python package installation failed." -ForegroundColor Red
+    Write-Host "  [FAIL] Python package installation failed." -ForegroundColor Red
     exit 1
 }
 Write-Ok "pydicom + requests ready"
@@ -131,7 +131,7 @@ python scripts/prepare-msd-for-orthanc.py `
     --data evaluation/ct-spleen/data `
     --orthanc http://localhost:8042
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "  ❌ DICOM conversion/upload failed." -ForegroundColor Red
+    Write-Host "  [FAIL] DICOM conversion/upload failed." -ForegroundColor Red
     exit 1
 }
 Write-Ok "5 studies converted and uploaded to Orthanc"
@@ -157,7 +157,7 @@ foreach ($case in $Cases) {
     Write-Ok "Registered $($case.patient_id)"
 }
 if ($registered -ne 5) {
-    Write-Host "  ⚠ Expected 5 MSD cases, registered $registered" -ForegroundColor Yellow
+    Write-Host "  [WARN] Expected 5 MSD cases, registered $registered" -ForegroundColor Yellow
 }
 
 # ------------------------------------------------------------
@@ -171,16 +171,16 @@ docker exec medical-uncertainty python /app/scripts/precompute_cases.py `
     --condition C2 `
     --report /tmp/precompute.json
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "  ⚠ Precompute reported failures (DET rows are expected)." -ForegroundColor Yellow
+    Write-Host "  [WARN] Precompute reported failures (DET rows are expected)." -ForegroundColor Yellow
 }
 
 # ------------------------------------------------------------
-# 8. Done — tell the tester what to do next
+# 8. Done - tell the tester what to do next
 # ------------------------------------------------------------
 Write-Host ""
-Write-Host "╔═══════════════════════════════════════════════════╗" -ForegroundColor Green
-Write-Host "║   ✅ Demo data is ready!                          ║" -ForegroundColor Green
-Write-Host "╚═══════════════════════════════════════════════════╝" -ForegroundColor Green
+Write-Host "====================================================" -ForegroundColor Green
+Write-Host "    [PASS] Demo data is ready!" -ForegroundColor Green
+Write-Host "====================================================" -ForegroundColor Green
 Write-Host ""
 Write-Host "  Open the reviewer:  http://localhost:3000/uncertainty-review?reviewer=R01&condition=C2"
 Write-Host "  Open OHIF viewer:   http://localhost:3000"
