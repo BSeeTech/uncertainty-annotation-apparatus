@@ -909,7 +909,6 @@ function onModeEnter(
       'Pan',
       'Zoom',
       'Capture',
-      'MoreTools',
     ]);
     toolbarService.createButtonSection('segmentationToolbox', ['BrushTools', 'Shapes']);
   }

@@ -373,6 +373,10 @@ function buildSegmentationDescriptor(args: {
   return {
     id: args.segmentationId,
     segmentationId: args.segmentationId,
+    // CornerstoneCacheService uses this identifier when deciding whether a
+    // hydrated segmentation belongs in a viewport. Without it, case changes
+    // call displaySetService.getDisplaySetByUID(undefined) and abort loading.
+    displaySetInstanceUID: args.referenceVolumeId.split(':').pop(),
     label: args.label,
     type: args.representationType,
     representation: {
