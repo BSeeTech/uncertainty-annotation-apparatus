@@ -226,22 +226,28 @@ docker exec medical-postgres psql -U medical_imaging -d annotations -c "SELECT c
 docker exec medical-postgres psql -U medical_imaging -d annotations -c "SELECT case_id, reviewer_id, condition, status, started_at, ended_at FROM annotation_status ORDER BY updated_at DESC LIMIT 12;"
 ```
 
-For one recorded pair:
+Retrieve the newest accepted or edited C2 result. This command discovers the
+case and reviewer automatically; do not type placeholder identifiers:
 
 ```powershell
-$Annotation = Invoke-RestMethod "http://localhost:8043/uncertainty/annotations/CASE_ID/REVIEWER_ID?condition=C2"
+$RecordedPair = docker exec medical-postgres psql -U medical_imaging -d annotations -At -F '|' -c "SELECT case_id, reviewer_id FROM uncertainty_annotations WHERE condition='C2' AND status IN ('accepted','edited') AND mask_filename IS NOT NULL ORDER BY created_at DESC LIMIT 1;"
+if (-not $RecordedPair) { throw 'No accepted or edited C2 annotation exists. Complete the Accept or Edit procedure above, then rerun this block.' }
+$CaseId, $ReviewerId = $RecordedPair.Trim() -split '\|', 2
+$AnnotationUri = "http://localhost:8043/uncertainty/annotations/$([uri]::EscapeDataString($CaseId))/$([uri]::EscapeDataString($ReviewerId))?condition=C2"
+$Annotation = Invoke-RestMethod $AnnotationUri -ErrorAction Stop
+if (-not $Annotation.storage_url) { throw "The stored annotation has no downloadable mask: $CaseId / $ReviewerId" }
 $Annotation | ConvertTo-Json -Depth 5
-Invoke-WebRequest $Annotation.storage_url -OutFile "$Evidence\retrieved-reviewer-mask.nii.gz"
-Get-FileHash "$Evidence\retrieved-reviewer-mask.nii.gz" -Algorithm SHA256
+$RetrievedMask = "$Evidence\retrieved-reviewer-mask.nii.gz"
+Invoke-WebRequest $Annotation.storage_url -OutFile $RetrievedMask -ErrorAction Stop
+if ((Get-Item $RetrievedMask).Length -eq 0) { throw 'The retrieved annotation mask is empty.' }
+Get-FileHash $RetrievedMask -Algorithm SHA256 -ErrorAction Stop
 ```
-
-Replace `CASE_ID` and `REVIEWER_ID` with values from the SQL output.
 
 **Pass:** accepted/edited submissions have a NIfTI filename and non-zero `mask_size_bytes`; rejection has no required mask; status and timestamps persist independently per condition; GET returns the latest submission for the requested condition; `storage_url` downloads a valid, non-empty NIfTI mask. An edited C1/C2 mask reports measured AI/reviewer foreground and edit-voxel values rather than placeholder zeros.
 
 ## A9. Event and timing telemetry
 
-Using reviewer `R12` in C2:
+Using any reviewer in C2:
 
 1. Open a case and change several slices.
 2. Toggle the heatmap twice and move opacity.
@@ -250,8 +256,13 @@ Using reviewer `R12` in C2:
 5. Wait a few seconds so the buffered logger flushes. A full browser unload also flushes already-buffered events, but the in-app back control is the deterministic case-close check.
 
 ```powershell
-docker exec medical-postgres psql -U medical_imaging -d annotations -c "SELECT event_type, COUNT(*) FROM review_events WHERE reviewer_id='R12' AND condition='C2' GROUP BY event_type ORDER BY event_type;"
-docker exec medical-postgres psql -U medical_imaging -d annotations -c "SELECT case_id, event_type, client_ts, server_ts, payload FROM review_events WHERE reviewer_id='R12' AND condition='C2' ORDER BY server_ts DESC LIMIT 30;"
+$TelemetryReviewer = docker exec medical-postgres psql -U medical_imaging -d annotations -At -c "SELECT reviewer_id FROM review_events WHERE condition='C2' ORDER BY server_ts DESC LIMIT 1;"
+if (-not $TelemetryReviewer) { throw 'No C2 telemetry exists. Complete the five browser actions above, wait a few seconds, then rerun this block.' }
+$TelemetryReviewer = $TelemetryReviewer.Trim()
+$TelemetryReviewerSql = $TelemetryReviewer.Replace("'", "''")
+"Inspecting C2 telemetry for reviewer: $TelemetryReviewer"
+docker exec medical-postgres psql -U medical_imaging -d annotations -c "SELECT event_type, COUNT(*) FROM review_events WHERE reviewer_id='$TelemetryReviewerSql' AND condition='C2' GROUP BY event_type ORDER BY event_type;"
+docker exec medical-postgres psql -U medical_imaging -d annotations -c "SELECT case_id, event_type, client_ts, server_ts, payload FROM review_events WHERE reviewer_id='$TelemetryReviewerSql' AND condition='C2' ORDER BY server_ts DESC LIMIT 30;"
 ```
 
 **Pass:** records include the applicable `case_open`, navigation/viewport, `heatmap_toggle`, `opacity_change`, edit, submission/decision, and case-close events; every row has the correct reviewer, condition, case, and server timestamp. `client_ts` should be populated for browser-generated events. Missing heatmap events in C2 or heatmap events attributed to C0/C1 fail condition integrity.
@@ -261,23 +272,33 @@ docker exec medical-postgres psql -U medical_imaging -d annotations -c "SELECT c
 Record current counts, restart services, then compare:
 
 ```powershell
-$StoredBefore = Invoke-RestMethod "http://localhost:8043/uncertainty/annotations/CASE_ID/REVIEWER_ID?condition=C2"
-Invoke-WebRequest $StoredBefore.storage_url -OutFile "$Evidence\mask-before-restart.nii.gz"
-$MaskHashBefore = (Get-FileHash "$Evidence\mask-before-restart.nii.gz" -Algorithm SHA256).Hash
+$RecordedPair = docker exec medical-postgres psql -U medical_imaging -d annotations -At -F '|' -c "SELECT case_id, reviewer_id FROM uncertainty_annotations WHERE condition='C2' AND status IN ('accepted','edited') AND mask_filename IS NOT NULL ORDER BY created_at DESC LIMIT 1;"
+if (-not $RecordedPair) { throw 'No accepted or edited C2 annotation exists. Complete A8, then rerun A10.' }
+$CaseId, $ReviewerId = $RecordedPair.Trim() -split '\|', 2
+$AnnotationUri = "http://localhost:8043/uncertainty/annotations/$([uri]::EscapeDataString($CaseId))/$([uri]::EscapeDataString($ReviewerId))?condition=C2"
+$StoredBefore = Invoke-RestMethod $AnnotationUri -ErrorAction Stop
+if (-not $StoredBefore.storage_url) { throw "The stored annotation has no downloadable mask: $CaseId / $ReviewerId" }
+$MaskBeforePath = "$Evidence\mask-before-restart.nii.gz"
+$MaskAfterPath = "$Evidence\mask-after-restart.nii.gz"
+Invoke-WebRequest $StoredBefore.storage_url -OutFile $MaskBeforePath -ErrorAction Stop
+if ((Get-Item $MaskBeforePath).Length -eq 0) { throw 'The pre-restart annotation mask is empty.' }
+$MaskHashBefore = (Get-FileHash $MaskBeforePath -Algorithm SHA256 -ErrorAction Stop).Hash
 $Before = docker exec medical-postgres psql -U medical_imaging -d annotations -At -c "SELECT (SELECT COUNT(*) FROM review_events) || ',' || (SELECT COUNT(*) FROM uncertainty_annotations) || ',' || (SELECT COUNT(*) FROM annotation_status);"
 docker compose restart postgres uncertainty-service collaboration-server
 Start-Sleep -Seconds 20
 $After = docker exec medical-postgres psql -U medical_imaging -d annotations -At -c "SELECT (SELECT COUNT(*) FROM review_events) || ',' || (SELECT COUNT(*) FROM uncertainty_annotations) || ',' || (SELECT COUNT(*) FROM annotation_status);"
-$StoredAfter = Invoke-RestMethod "http://localhost:8043/uncertainty/annotations/CASE_ID/REVIEWER_ID?condition=C2"
-Invoke-WebRequest $StoredAfter.storage_url -OutFile "$Evidence\mask-after-restart.nii.gz"
-$MaskHashAfter = (Get-FileHash "$Evidence\mask-after-restart.nii.gz" -Algorithm SHA256).Hash
+$StoredAfter = Invoke-RestMethod $AnnotationUri -ErrorAction Stop
+if (-not $StoredAfter.storage_url) { throw 'The annotation storage URL was lost during restart.' }
+Invoke-WebRequest $StoredAfter.storage_url -OutFile $MaskAfterPath -ErrorAction Stop
+if ((Get-Item $MaskAfterPath).Length -eq 0) { throw 'The post-restart annotation mask is empty.' }
+$MaskHashAfter = (Get-FileHash $MaskAfterPath -Algorithm SHA256 -ErrorAction Stop).Hash
 "Before: $Before"
 "After:  $After"
 "Mask retained: $($MaskHashBefore -eq $MaskHashAfter)"
+if ($Before -ne $After) { throw "Database counts changed across restart: before=$Before after=$After" }
+if ($MaskHashBefore -ne $MaskHashAfter) { throw 'The annotation mask hash changed across restart.' }
 Invoke-RestMethod http://localhost:8043/uncertainty/health/ready
 ```
-
-Replace `CASE_ID` and `REVIEWER_ID` with an accepted or edited C2 record from A8.
 
 **Pass:** before/after counts match, readiness recovers, both mask downloads succeed, and `Mask retained` is `True`.
 

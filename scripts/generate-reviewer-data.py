@@ -234,16 +234,24 @@ def main():
 
             # NASA-TLX per (reviewer, condition) — post-session
             mu_n, sd_n = NASATLX_PARAMS[cond]
+            raw_tlx_target = max(0, min(100, round(random.gauss(mu_n, sd_n))))
+            noise = [random.uniform(-12, 12) for _ in range(6)]
+            bias = sum(noise) / 6.0
+            subscales = [
+                max(0, min(100, round(raw_tlx_target + value - bias)))
+                for value in noise
+            ]
+            raw_tlx = round(sum(subscales) / len(subscales), 1)
             nasa_tlx_rows.append({
                 "reviewer_id": rev,
                 "condition": cond,
-                "mental_demand": max(0, min(100, round(random.gauss(mu_n, sd_n)))),
-                "physical_demand": max(0, min(100, round(random.gauss(mu_n * 0.6, sd_n * 0.8)))),
-                "temporal_demand": max(0, min(100, round(random.gauss(mu_n * 0.8, sd_n * 0.9)))),
-                "performance": max(0, min(100, round(random.gauss(100 - mu_n * 0.7, sd_n * 0.7)))),
-                "effort": max(0, min(100, round(random.gauss(mu_n * 0.9, sd_n * 0.85)))),
-                "frustration": max(0, min(100, round(random.gauss(mu_n * 0.5, sd_n * 0.9)))),
-                "raw_tlx": max(0, min(100, round(random.gauss(mu_n, sd_n)))),
+                "mental_demand": subscales[0],
+                "physical_demand": subscales[1],
+                "temporal_demand": subscales[2],
+                "performance": subscales[3],
+                "effort": subscales[4],
+                "frustration": subscales[5],
+                "raw_tlx": raw_tlx,
             })
 
     # ── Write SQL ──────────────────────────────────────────────────
@@ -262,8 +270,8 @@ def main():
                 f"INSERT INTO annotation_status (case_id, reviewer_id, condition, status, started_at, ended_at, updated_at)\n"
                 f"VALUES ({sql_literal(case_id)}, {sql_literal(rev)}, {sql_literal(cond)}, {sql_literal(status)},\n"
                 f"        {sql_literal(sql_ts(started_at))}, {sql_literal(sql_ts(ended_at))}, {sql_literal(sql_ts(ended_at))})\n"
-                f"ON CONFLICT (case_id, reviewer_id) DO UPDATE SET\n"
-                f"  condition = EXCLUDED.condition, status = EXCLUDED.status,\n"
+                f"ON CONFLICT (case_id, reviewer_id, condition) DO UPDATE SET\n"
+                f"  status = EXCLUDED.status,\n"
                 f"  started_at = EXCLUDED.started_at, ended_at = EXCLUDED.ended_at, updated_at = EXCLUDED.updated_at;\n\n"
             )
 
@@ -331,6 +339,17 @@ def main():
         all_pairs.add((rev, cond, case_id))
     print(f"  Total unique (reviewer, condition, case) tuples: {len(all_pairs)} (expected 108)")
     assert len(all_pairs) == 108, f"Expected 108, got {len(all_pairs)}"
+
+    for row in nasa_tlx_rows:
+        calculated = round(sum(row[name] for name in (
+            "mental_demand", "physical_demand", "temporal_demand",
+            "performance", "effort", "frustration"
+        )) / 6.0, 1)
+        assert row["raw_tlx"] == calculated, (
+            f"NASA-TLX mismatch for {row['reviewer_id']} {row['condition']}: "
+            f"stored={row['raw_tlx']} calculated={calculated}"
+        )
+    print("  All 36 NASA-TLX raw scores equal their six-subscale means [OK]")
 
     print("\n[OK] Data generation complete.")
 
