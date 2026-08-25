@@ -296,7 +296,14 @@ function ViewerViewportGrid(props) {
         }
 
         if (event) {
-          event.preventDefault();
+          // React delegates wheel events through a passive listener in this
+          // version. Calling preventDefault() there is ignored by Chromium and
+          // emits a console error. Activating the viewport and stopping React
+          // propagation is sufficient for wheel interaction; retain default
+          // prevention for cancellable mouse/click activation paths.
+          if (event.type !== 'wheel') {
+            event.preventDefault();
+          }
           event.stopPropagation();
         }
 

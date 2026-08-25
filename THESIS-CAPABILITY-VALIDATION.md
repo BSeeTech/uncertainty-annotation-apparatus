@@ -41,8 +41,12 @@ For every test, record `PASS`, `FAIL`, or `NOT IMPLEMENTED`, the tester, date, c
 
 ```powershell
 Set-Location C:\uncertainty-annotation-apparatus\servers\uncertainty-service
+python -m pip install -r requirements-test.txt
 python -m pytest -q
 ```
+
+The install command is intentionally repeated here so an existing checkout
+that was updated with `git pull` receives newly added test dependencies.
 
 **Pass:** all tests pass. The current maintained baseline is 113 tests; a higher count is acceptable.
 

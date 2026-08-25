@@ -56,19 +56,18 @@ export function createSegmentationExportAdapter(
           '[SegmentationExportAdapter] No segmentation id for reference volume ' +
           args.referenceVolumeId,
         );
-        // No manual segmentation drawn (C0 without annotation, or no AI mask).
-        // Return an empty (all-zero) mask so the reviewer can submit with
-        // 0 voxels edited rather than getting a hard error.
-        return emptyMaskFromReference(args.referenceVolumeId);
+        // Fail closed: submitting an inferred all-zero mask would turn missing
+        // reviewer data into an apparently valid annotation.
+        return null;
       }
 
       const labelmap = await readLabelmapVolume(segId);
       if (!labelmap) {
         console.warn(
           '[SegmentationExportAdapter] Segmentation found but labelmap volume missing ' +
-          'for segId=' + segId + '; falling back to empty mask.',
+          'for segId=' + segId + '; submission blocked.',
         );
-        return emptyMaskFromReference(args.referenceVolumeId);
+        return null;
       }
 
       return blobFromLabelmap(labelmap);
@@ -87,33 +86,6 @@ interface LabelmapVolume {
   origin: [number, number, number];
   /** Row-major 3x3 direction cosines, flattened. */
   direction: number[];
-}
-
-/**
- * Create an empty (all-zero) labelmap volume from a reference volume's
- * geometry.  Used on C0 when the reviewer has not drawn any annotation:
- * the submission still goes through with 0 voxels edited.
- *
- * Returns `null` if the reference volume is not in the cache, which
- * makes the caller fall back to a hard error (same as before the
- * empty-mask path was added).
- */
-function emptyMaskFromReference(referenceVolumeId: string): Blob | null {
-  const cache: Any = (cornerstone as Any).cache;
-  const refVol: Any = cache?.getVolume?.(referenceVolumeId);
-  if (!refVol) return null;
-
-  const dims: [number, number, number] = refVol.dimensions;
-  const total = dims[0] * dims[1] * dims[2];
-  const data = new Uint8Array(total);  // all zeros
-
-  return blobFromLabelmap({
-    data,
-    dimensions: dims,
-    spacing: refVol.spacing,
-    origin: refVol.origin,
-    direction: refVol.direction ?? IDENTITY_DIRECTION,
-  });
 }
 
 async function readLabelmapVolume(segmentationId: string): Promise<LabelmapVolume | null> {

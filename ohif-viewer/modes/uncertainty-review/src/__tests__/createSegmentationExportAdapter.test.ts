@@ -82,7 +82,10 @@ describe('createSegmentationExportAdapter — version dispatch', () => {
   });
 
   it('returns null when no segmentationId is found for the reference', async () => {
-    setupMockFallback({ segmentation: null, cachedVolume: null });
+    const { rec } = setupMockFallback({
+      segmentation: null,
+      cachedVolume: makeFakeVolume(new Uint8Array(64)),
+    });
     const { createSegmentationExportAdapter } = loadAdapter();
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
     const adapter: SegmentationExportAdapter = createSegmentationExportAdapter({
@@ -92,6 +95,7 @@ describe('createSegmentationExportAdapter — version dispatch', () => {
       caseId: 'c', referenceVolumeId: 'vol:image',
     });
     expect(blob).toBeNull();
+    expect(rec.segIdCalls).toEqual([]);
     warn.mockRestore();
   });
 
@@ -161,6 +165,7 @@ describe('createSegmentationExportAdapter — version dispatch', () => {
       cachedVolume: null,
     });
     const { createSegmentationExportAdapter } = loadAdapter();
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
     const adapter = createSegmentationExportAdapter({
       getSegmentationIdForReference: () => 'seg-1',
     });
@@ -168,6 +173,10 @@ describe('createSegmentationExportAdapter — version dispatch', () => {
       caseId: 'c', referenceVolumeId: 'vol:image',
     });
     expect(blob).toBeNull();
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('labelmap volume missing')
+    );
+    warn.mockRestore();
   });
 
   it('returns null and warns when V2+ API is unavailable', async () => {

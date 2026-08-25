@@ -1,5 +1,4 @@
 import React, { useEffect } from 'react';
-import html2canvas from 'html2canvas';
 import {
   Enums,
   getEnabledElement,
@@ -18,6 +17,18 @@ const DEFAULT_SIZE = 512;
 const MAX_TEXTURE_SIZE = 10000;
 const VIEWPORT_ID = 'cornerstone-viewport-download-form';
 
+const copyViewPresentation = (sourceViewport, targetViewport) => {
+  const viewReference = sourceViewport.getViewReference?.();
+  const presentation = sourceViewport.getViewPresentation?.();
+
+  if (viewReference && typeof targetViewport.setViewReference === 'function') {
+    targetViewport.setViewReference(viewReference);
+  }
+  if (presentation && typeof targetViewport.setViewPresentation === 'function') {
+    targetViewport.setViewPresentation(presentation);
+  }
+};
+
 const CornerstoneViewportDownloadForm = ({
   onClose,
   activeViewportId: activeViewportIdProp,
@@ -27,11 +38,7 @@ const CornerstoneViewportDownloadForm = ({
   const activeViewportElement = enabledElement?.element;
   const activeViewportEnabledElement = getEnabledElement(activeViewportElement);
 
-  const {
-    viewportId: activeViewportId,
-    renderingEngineId,
-    viewport: activeViewport,
-  } = activeViewportEnabledElement;
+  const { viewportId: activeViewportId, renderingEngineId } = activeViewportEnabledElement;
 
   const toolGroup = ToolGroupManager.getToolGroupForViewport(activeViewportId, renderingEngineId);
 
@@ -96,10 +103,6 @@ const CornerstoneViewportDownloadForm = ({
       // to render the viewport for the downloadViewport.
       renderingEngine.resize();
 
-      // Trigger the render on the viewport to update the on screen
-      // downloadViewport.resetCamera();
-      downloadViewport.render();
-
       downloadViewportElement.addEventListener(
         Enums.Events.IMAGE_RENDERED,
         function updateViewport(event) {
@@ -124,14 +127,13 @@ const CornerstoneViewportDownloadForm = ({
           resolve({ dataUrl, width: newWidth, height: newHeight });
 
           downloadViewportElement.removeEventListener(Enums.Events.IMAGE_RENDERED, updateViewport);
-
-          // for some reason we need a reset camera here, and I don't know why
-          downloadViewport.resetCamera();
-          const presentation = activeViewport.getViewPresentation();
-          downloadViewport.setView(activeViewport.getViewReference(), presentation);
-          downloadViewport.render();
         }
       );
+
+      // Register the listener before rendering. Context-pool rendering can
+      // complete quickly enough that registering afterwards misses the frame
+      // and leaves the preview/export canvas blank.
+      downloadViewport.render();
     });
 
   const loadImage = (activeViewportElement, viewportElement, width, height) =>
@@ -155,6 +157,7 @@ const CornerstoneViewportDownloadForm = ({
           downloadViewport.setStack([imageId]).then(() => {
             try {
               downloadViewport.setProperties(properties);
+              copyViewPresentation(viewport, downloadViewport);
               const newWidth = Math.min(width || image.width, MAX_TEXTURE_SIZE);
               const newHeight = Math.min(height || image.height, MAX_TEXTURE_SIZE);
 
@@ -166,11 +169,13 @@ const CornerstoneViewportDownloadForm = ({
           });
         } else if (downloadViewport instanceof BaseVolumeViewport) {
           const actors = viewport.getActors();
-          // downloadViewport.setActors(actors);
+          // Copy every visible actor, not just the CT volume. In uncertainty
+          // review this includes the AI segmentation and entropy heatmap.
           actors.forEach(actor => {
             downloadViewport.addActor(actor);
           });
 
+          copyViewPresentation(viewport, downloadViewport);
           downloadViewport.render();
 
           const newWidth = Math.min(width || image.width, MAX_TEXTURE_SIZE);
@@ -218,13 +223,21 @@ const CornerstoneViewportDownloadForm = ({
     const divForDownloadViewport = document.querySelector(
       `div[data-viewport-uid="${VIEWPORT_ID}"]`
     );
+    if (!divForDownloadViewport) {
+      throw new Error('Download viewport is not available. Reopen Capture and try again.');
+    }
 
-    html2canvas(divForDownloadViewport).then(canvas => {
-      const link = document.createElement('a');
-      link.download = file;
-      link.href = canvas.toDataURL(fileType, 1.0);
-      link.click();
-    });
+    // Capture the Cornerstone output canvas directly. html2canvas cannot
+    // reliably copy GPU/WebGL-backed medical-image pixels and produced blank
+    // files even when the preview was correct. Segmentation and uncertainty
+    // are volume actors in this canvas, so they remain in the exported image.
+    const canvas = getOrCreateCanvas(divForDownloadViewport as HTMLDivElement);
+    const mimeType = `image/${fileType === 'jpg' ? 'jpeg' : fileType}`;
+    const dataUrl = canvas.toDataURL(mimeType, 1.0);
+    const link = document.createElement('a');
+    link.download = file;
+    link.href = dataUrl;
+    link.click();
   };
 
   return (
@@ -247,6 +260,9 @@ const CornerstoneViewportDownloadForm = ({
 CornerstoneViewportDownloadForm.propTypes = {
   onClose: PropTypes.func,
   activeViewportId: PropTypes.string.isRequired,
+  cornerstoneViewportService: PropTypes.shape({
+    getRenderingEngine: PropTypes.func.isRequired,
+  }).isRequired,
 };
 
 export default CornerstoneViewportDownloadForm;

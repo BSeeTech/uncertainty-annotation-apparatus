@@ -493,8 +493,14 @@ describe('UncertaintyService — heatmap controls', () => {
   it('setHeatmapVisible(false) is allowed in any condition', () => {
     const { service, renderer } = buildService();
     service.setSession({ reviewerId: 'R01', condition: 'C1' });
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
     service.setHeatmapVisible(false);
     expect(renderer.visible).toBe(false);
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('no current case'),
+      'heatmap_toggle'
+    );
+    warn.mockRestore();
   });
 
   it('toggleHeatmap flips and logs in C2', () => {
