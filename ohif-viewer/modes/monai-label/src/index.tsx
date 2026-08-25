@@ -74,21 +74,6 @@ function modeFactory({ modeConfiguration }) {
         'MoreTools',
       ]);
 
-      toolbarService.createButtonSection('viewportActionMenu.topLeft', [
-        'orientationMenu',
-        'dataOverlayMenu',
-      ]);
-
-      toolbarService.createButtonSection('viewportActionMenu.topRight', [
-        'modalityLoadBadge',
-        'trackingStatus',
-        'navigationComponent',
-      ]);
-
-      toolbarService.createButtonSection('viewportActionMenu.bottomLeft', [
-        'windowLevelMenu',
-      ]);
-
       toolbarService.createButtonSection('MoreTools', [
         'Reset',
         'rotate-right',

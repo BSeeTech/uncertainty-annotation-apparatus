@@ -60,6 +60,7 @@ The tests use the evaluation-only database default and never touch a real
 database, so no credential setup is required:
 
 ```bash
+python -m pip install -r requirements-test.txt
 python -m pytest -v --tb=short
 python -m pytest --cov=app --cov-report=term-missing
 ```

@@ -20,20 +20,20 @@ For every test, record `PASS`, `FAIL`, or `NOT IMPLEMENTED`, the tester, date, c
 
 | ID | Capability | Result | Evidence/notes |
 |---|---|---|---|
-| A1 | Automated regression suites | PASS | 113 service, 119 extension, and 87 mode tests; see `validation-evidence/20260824-123243/A1-*.txt` |
-| A2 | Infrastructure and restored data | PASS | Five MSD studies registered; readiness and restored-file checks passed |
-| A3 | Model identity and provenance | PASS | Locked dataset/checkpoint hashes verified and idempotent installers reused them |
-| A4 | C0/C1/C2 isolation | PASS | Condition capability matrix verified; C0/C1 hide uncertainty |
-| A5 | Segmentation and uncertainty outputs | PASS | C1 segmentation-only and C2 segmentation-plus-uncertainty artifacts verified |
-| A6 | Heatmap rendering and controls | PASS | Live 0/50/100% and slice-alignment screenshots in `validation-evidence/20260824-123243/A6-*.png` |
-| A7 | Worklist prioritisation | PASS | High-first/low-first ordering and condition-safe fields verified |
-| A8 | Accept/edit/reject workflow | PASS | Real OHIF brush edit: 3,705 voxels; mask/database evidence in `validation-evidence/20260824-123243/A8-*` |
-| A9 | Event and timing telemetry | PASS | Eleven applicable event types persisted; see `A9-event-counts.txt` and `A9-recent-events.txt` |
-| A10 | PostgreSQL persistence and restart | PASS | Counts and SHA-256 identical after restart; see `A10-restart-persistence.txt` |
-| A11 | Collaboration service | PASS | REST create/get/list/close lifecycle verified independently |
-| A12 | Study allocation and NASA-TLX fixtures | PASS | 12 participants, 36 sessions, 108 attempts, 36 TLX rows generated |
-| A13 | Technical metrics and report | PASS | Five cases reported; three labeled Dice results approximately 0.89/0.88/0.91 |
-| A14 | Failure recovery and resumability | PASS | Installer reuse plus expected 503/recovery; see `A14-readiness-failure-recovery.txt` |
+| A1 | Automated regression suites | NOT RUN | |
+| A2 | Infrastructure and restored data | NOT RUN | |
+| A3 | Model identity and provenance | NOT RUN | |
+| A4 | C0/C1/C2 isolation | NOT RUN | |
+| A5 | Segmentation and uncertainty outputs | NOT RUN | |
+| A6 | Heatmap rendering and controls | NOT RUN | |
+| A7 | Worklist prioritisation | NOT RUN | |
+| A8 | Accept/edit/reject workflow | NOT RUN | |
+| A9 | Event and timing telemetry | NOT RUN | |
+| A10 | PostgreSQL persistence and restart | NOT RUN | |
+| A11 | Collaboration service | NOT RUN | |
+| A12 | Study allocation and NASA-TLX fixtures | NOT RUN | |
+| A13 | Technical metrics and report | NOT RUN | |
+| A14 | Failure recovery and resumability | NOT RUN | |
 
 ## A1. Automated regression suites
 

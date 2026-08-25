@@ -6,7 +6,7 @@ no real consent, no real ethics approvals. The values are calibrated to
 match the expected analysis outputs.
 
 Tables populated:
-  participants       — 12 synthetic rows (expertise, consent, ethics — all simulated)
+  participants       — 12 synthetic development rows (no consent or ethics claims)
   study_sessions     — 36 rows (condition_order counterbalanced)
   study_attempts     — 108 rows (queue_rank, active_time_ms, heatmap tracking)
   nasa_tlx_responses — 36 rows (six subscales → computed raw_tlx)
@@ -127,6 +127,9 @@ def sql_ts(dt):
 def sql_literal(s):
     return "'" + s.replace("'", "''") + "'"
 
+def sql_nullable(value):
+    return "NULL" if value is None else sql_literal(value)
+
 # ── Generate ──────────────────────────────────────────────────────
 participant_rows = []
 session_rows = []
@@ -146,9 +149,7 @@ for rev in REVIEWERS:
     # ── Participant ──
     expertise = random.choice(["med_student","med_student","med_student","resident","phd_student","lab_mate"])
     years = round(random.uniform(0.5, 5.0), 1) if expertise != "lab_mate" else round(random.uniform(0, 2.0), 1)
-    participant_rows.append((rev, expertise, years, True, True,
-        BASE_DATE - timedelta(days=random.randint(1, 7)),
-        "ETH-2026-MED-0042" if random.random() < 0.9 else "ETH-EXEMPT-2026-001"))
+    participant_rows.append((rev, expertise, years, False, False, None, None))
 
     for cond in CONDITIONS:
         case_indices = ALLOC[rev][cond]
@@ -233,9 +234,10 @@ tag = args.tag
 suffix = f"-{tag}" if tag else ""
 sql_path = OUT / f"research-data{suffix}.sql"
 with sql_path.open("w") as f:
-    f.write("-- Research-grade R01-R12 dataset\n")
+    f.write("-- SYNTHETIC VALIDATION FIXTURE — NOT HUMAN-PARTICIPANT RESEARCH DATA\n")
     f.write(f"-- Generated: {datetime.now().isoformat()}\n")
-    f.write("-- Matches Data Acquisition Plan (C0-C2) July 2026\n\n")
+    f.write("-- Deterministic pipeline test data; consent and ethics fields are intentionally NULL.\n")
+    f.write("-- Must not be used as evidence of participant recruitment, ethics approval, or study outcomes.\n\n")
     f.write("BEGIN;\n\n")
 
     # participants
@@ -245,7 +247,7 @@ with sql_path.open("w") as f:
             f"INSERT INTO participants (reviewer_id, expertise_level, expertise_years, "
             f"eligibility_confirmed, consent_obtained, consent_date, ethics_approval_ref, is_development)\n"
             f"VALUES ({sql_literal(rev)}, {sql_literal(exp)}, {yrs}, {elig}, {consent}, "
-            f"{sql_literal(sql_ts(consent_date))}, {sql_literal(ethics)}, false)\n"
+            f"{sql_nullable(sql_ts(consent_date) if consent_date else None)}, {sql_nullable(ethics)}, true)\n"
             f"ON CONFLICT (reviewer_id) DO NOTHING;\n\n"
         )
 

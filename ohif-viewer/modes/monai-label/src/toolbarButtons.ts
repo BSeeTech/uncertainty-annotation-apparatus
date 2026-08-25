@@ -1,5 +1,4 @@
 import type { Button } from '@ohif/core/types';
-import { ViewportGridService } from '@ohif/core';
 
 const setToolActiveToolbar = {
   commandName: 'setToolActiveToolbar',
@@ -9,77 +8,6 @@ const setToolActiveToolbar = {
 };
 
 const toolbarButtons: Button[] = [
-  {
-    id: 'modalityLoadBadge',
-    uiType: 'ohif.modalityLoadBadge',
-    props: {
-      icon: 'Status',
-      label: 'Status',
-      tooltip: 'Status',
-      evaluate: {
-        name: 'evaluate.modalityLoadBadge',
-        hideWhenDisabled: true,
-      },
-    },
-  },
-  {
-    id: 'navigationComponent',
-    uiType: 'ohif.navigationComponent',
-    props: {
-      icon: 'Navigation',
-      label: 'Navigation',
-      tooltip: 'Navigate between segments/measurements and manage their visibility',
-      evaluate: {
-        name: 'evaluate.navigationComponent',
-        hideWhenDisabled: true,
-      },
-    },
-  },
-  {
-    id: 'trackingStatus',
-    uiType: 'ohif.trackingStatus',
-    props: {
-      icon: 'TrackingStatus',
-      label: 'Tracking Status',
-      tooltip: 'View and manage tracking status of measurements and annotations',
-      evaluate: {
-        name: 'evaluate.trackingStatus',
-        hideWhenDisabled: true,
-      },
-    },
-  },
-  {
-    id: 'dataOverlayMenu',
-    uiType: 'ohif.dataOverlayMenu',
-    props: {
-      icon: 'ViewportViews',
-      label: 'Data Overlay',
-      tooltip: 'Configure data overlay options and manage foreground/background display sets',
-      evaluate: 'evaluate.dataOverlayMenu',
-    },
-  },
-  {
-    id: 'orientationMenu',
-    uiType: 'ohif.orientationMenu',
-    props: {
-      icon: 'OrientationSwitch',
-      label: 'Orientation',
-      tooltip: 'Change viewport orientation between axial, sagittal, coronal and reformat planes',
-      evaluate: {
-        name: 'evaluate.orientationMenu',
-      },
-    },
-  },
-  {
-    id: 'windowLevelMenu',
-    uiType: 'ohif.windowLevelMenu',
-    props: {
-      icon: 'WindowLevel',
-      label: 'Window Level',
-      tooltip: 'Adjust window/level presets and customize image contrast settings',
-      evaluate: 'evaluate.windowLevelMenu',
-    },
-  },
   // Section containers for original tools
   {
     id: 'Zoom',
