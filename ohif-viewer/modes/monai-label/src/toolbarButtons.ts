@@ -372,13 +372,7 @@ const toolbarButtons: Button[] = [
       label: 'Ultrasound Directional',
       tooltip: 'Ultrasound Directional',
       commands: setToolActiveToolbar,
-      evaluate: [
-        'evaluate.cornerstoneTool',
-        {
-          name: 'evaluate.modality.supported',
-          supportedModalities: ['US'],
-        },
-      ],
+      evaluate: ['evaluate.cornerstoneTool', 'evaluate.isUS'],
     },
   },
   {
