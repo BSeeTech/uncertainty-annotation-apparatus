@@ -21,11 +21,7 @@ import { id as EXTENSION_ID } from '@thesis/extension-uncertainty';
 import { hotkeys } from '@ohif/core';
 import * as cornerstone from '@cornerstonejs/core';
 import * as cstoneTools from '@cornerstonejs/tools';
-import type {
-  Condition,
-  UncertaintyService,
-  WorklistEntry,
-} from '@thesis/extension-uncertainty';
+import type { Condition, UncertaintyService, WorklistEntry } from '@thesis/extension-uncertainty';
 import { HeatmapRenderer } from '@thesis/extension-uncertainty';
 // Reuse the stock OHIF segmentation-mode definitions at runtime. `require`
 // keeps this strict standalone mode's typecheck from recursively checking the
@@ -60,7 +56,7 @@ export function installReviewerTelemetry(service: UncertaintyService): void {
   const bind = (
     target: AnyServices,
     eventName: string | undefined,
-    handler: (event: AnyServices) => void,
+    handler: (event: AnyServices) => void
   ): void => {
     if (!target?.addEventListener || !eventName) return;
     target.addEventListener(eventName, handler);
@@ -74,10 +70,11 @@ export function installReviewerTelemetry(service: UncertaintyService): void {
   const toolsTarget = csTarget;
   const toolsEvents = (cstoneTools as AnyServices).Enums?.Events ?? {};
 
-  const sliceHandler = (event: AnyServices) => service.logViewerEvent('slice_change', {
-    viewportId: event?.detail?.viewportId ?? null,
-    imageIndex: event?.detail?.imageIndex ?? event?.detail?.currentImageIdIndex ?? null,
-  });
+  const sliceHandler = (event: AnyServices) =>
+    service.logViewerEvent('slice_change', {
+      viewportId: event?.detail?.viewportId ?? null,
+      imageIndex: event?.detail?.imageIndex ?? event?.detail?.currentImageIdIndex ?? null,
+    });
   bind(csTarget, csEvents.STACK_NEW_IMAGE, sliceHandler);
   bind(csTarget, csEvents.VOLUME_NEW_IMAGE, sliceHandler);
   bind(csTarget, csEvents.CAMERA_MODIFIED, (event: AnyServices) =>
@@ -107,8 +104,12 @@ export function installReviewerTelemetry(service: UncertaintyService): void {
       target instanceof HTMLCanvasElement ||
       (target instanceof Element && Boolean(target.closest('[data-viewport-uid]')));
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'ArrowUp' || event.key === 'ArrowDown' ||
-          event.key === 'PageUp' || event.key === 'PageDown') {
+      if (
+        event.key === 'ArrowUp' ||
+        event.key === 'ArrowDown' ||
+        event.key === 'PageUp' ||
+        event.key === 'PageDown'
+      ) {
         service.logViewerEvent('slice_change', {
           source: 'keyboard',
           key: event.key,
@@ -177,33 +178,35 @@ function getDisplaySetsFromService(displaySetService: AnyServices): AnyServices[
 
 function findDisplaySetForSeries(
   displaySetService: AnyServices,
-  seriesInstanceUID: string,
+  seriesInstanceUID: string
 ): AnyServices | null {
   const direct = displaySetService?.getDisplaySetsForSeries?.(seriesInstanceUID);
   const directFirst = asList(direct)[0];
   if (directFirst) return directFirst;
 
-  return getDisplaySetsFromService(displaySetService).find(ds =>
-    ds?.SeriesInstanceUID === seriesInstanceUID
-    || ds?.seriesInstanceUID === seriesInstanceUID
-    || ds?.series?.SeriesInstanceUID === seriesInstanceUID,
-  ) ?? null;
+  return (
+    getDisplaySetsFromService(displaySetService).find(
+      ds =>
+        ds?.SeriesInstanceUID === seriesInstanceUID ||
+        ds?.seriesInstanceUID === seriesInstanceUID ||
+        ds?.series?.SeriesInstanceUID === seriesInstanceUID
+    ) ?? null
+  );
 }
 
 function firstDisplaySetWithStudyAndSeries(displaySetService: AnyServices): AnyServices | null {
-  return getDisplaySetsFromService(displaySetService).find(ds =>
-    maybeString(ds?.StudyInstanceUID ?? ds?.studyInstanceUID ?? ds?.study?.StudyInstanceUID)
-    && maybeString(ds?.SeriesInstanceUID ?? ds?.seriesInstanceUID ?? ds?.series?.SeriesInstanceUID),
-  ) ?? null;
+  return (
+    getDisplaySetsFromService(displaySetService).find(
+      ds =>
+        maybeString(ds?.StudyInstanceUID ?? ds?.studyInstanceUID ?? ds?.study?.StudyInstanceUID) &&
+        maybeString(ds?.SeriesInstanceUID ?? ds?.seriesInstanceUID ?? ds?.series?.SeriesInstanceUID)
+    ) ?? null
+  );
 }
 
 function displaySetUID(ds: AnyServices): string | null {
   return maybeString(
-    ds?.displaySetInstanceUID
-    ?? ds?.DisplaySetInstanceUID
-    ?? ds?.displaySetUID
-    ?? ds?.id
-    ?? ds?.uid,
+    ds?.displaySetInstanceUID ?? ds?.DisplaySetInstanceUID ?? ds?.displaySetUID ?? ds?.id ?? ds?.uid
   );
 }
 
@@ -212,38 +215,42 @@ function studyUID(ds: AnyServices): string | null {
 }
 
 function seriesUID(ds: AnyServices): string | null {
-  return maybeString(ds?.SeriesInstanceUID ?? ds?.seriesInstanceUID ?? ds?.series?.SeriesInstanceUID);
+  return maybeString(
+    ds?.SeriesInstanceUID ?? ds?.seriesInstanceUID ?? ds?.series?.SeriesInstanceUID
+  );
 }
 
 function uniqueStrings(items: Array<string | null | undefined>): string[] {
-  return Array.from(new Set(items.filter((v): v is string => typeof v === 'string' && v.length > 0)));
+  return Array.from(
+    new Set(items.filter((v): v is string => typeof v === 'string' && v.length > 0))
+  );
 }
 
-function imageIdsFromDisplaySet(displaySet: AnyServices): string[] {
-  const candidates: unknown[] = [];
-  const add = (value: unknown): void => {
-    if (!value) return;
-    if (typeof value === 'string') {
-      candidates.push(value);
-      return;
-    }
-    if (Array.isArray(value)) {
-      candidates.push(...value);
-    }
-  };
+export function imageIdsFromDisplaySet(displaySet: AnyServices): string[] {
+  const sources = [
+    displaySet?.imageIds,
+    displaySet?.images?.map?.((image: AnyServices) => image?.imageId ?? image?.id),
+    displaySet?.instances?.map?.(
+      (instance: AnyServices) => instance?.imageId ?? instance?.wadorsuri ?? instance?.url
+    ),
+  ];
 
-  add(displaySet?.imageIds);
-  add(displaySet?.images?.map?.((image: AnyServices) => image?.imageId ?? image?.id));
-  add(displaySet?.instances?.map?.((instance: AnyServices) =>
-    instance?.imageId ?? instance?.wadorsuri ?? instance?.url
-  ));
+  // These properties are alternative representations of the same DICOM
+  // instances, not additive lists. Combining them can turn a 38-slice study
+  // into a 76-slice Cornerstone volume when their URL strings differ, which
+  // makes an otherwise grid-aligned NIfTI mask impossible to import.
+  for (const source of sources) {
+    const values = Array.isArray(source) ? source : typeof source === 'string' ? [source] : [];
+    const imageIds = uniqueStrings(values.map(value => maybeString(value)));
+    if (imageIds.length) return imageIds;
+  }
 
-  return uniqueStrings(candidates.map(value => maybeString(value)));
+  return [];
 }
 
 async function ensureReferenceVolumeCached(
   referenceVolumeId: string,
-  displaySet: AnyServices,
+  displaySet: AnyServices
 ): Promise<void> {
   const cache: AnyServices = (cornerstone as AnyServices).cache;
   const volumeLoader: AnyServices = (cornerstone as AnyServices).volumeLoader;
@@ -262,7 +269,7 @@ async function ensureReferenceVolumeCached(
   }
 
   const volume = await Promise.resolve(
-    volumeLoader.createAndCacheVolume(referenceVolumeId, { imageIds }),
+    volumeLoader.createAndCacheVolume(referenceVolumeId, { imageIds })
   );
   await Promise.resolve(volume?.load?.());
 }
@@ -270,7 +277,7 @@ async function ensureReferenceVolumeCached(
 async function waitForDisplaySetUID(
   displaySetService: AnyServices,
   seriesInstanceUID: string,
-  intervalMs = 200,
+  intervalMs = 200
 ): Promise<string> {
   let elapsed = 0;
   const warnAt = [5_000, 15_000, 30_000];
@@ -287,7 +294,7 @@ async function waitForDisplaySetUID(
         warnAt.splice(warnAt.indexOf(nextWarn), 1);
         // eslint-disable-next-line no-console
         console.warn(
-          `[waitForDisplaySetUID] Still waiting for display set for series ${seriesInstanceUID} after ${elapsed}ms`,
+          `[waitForDisplaySetUID] Still waiting for display set for series ${seriesInstanceUID} after ${elapsed}ms`
         );
       }
       setTimeout(poll, intervalMs);
@@ -319,9 +326,11 @@ function getCurrentRouteSearch(): string {
 
 const SESSION_STORAGE_KEY = 'uncertainty-review-session';
 const MONAI_LABEL_PANEL = '@ohif/extension-monai-label.panelModule.monailabel';
-const SEGMENTATION_PANEL_WITH_TOOLS = '@ohif/extension-cornerstone-dicom-seg.panelModule.panelSegmentationWithTools';
+const SEGMENTATION_PANEL_WITH_TOOLS =
+  '@ohif/extension-cornerstone-dicom-seg.panelModule.panelSegmentationWithTools';
 const SEGMENTATION_VIEWPORT = '@ohif/extension-cornerstone-dicom-seg.viewportModule.dicom-seg';
-const SEGMENTATION_SOP_CLASS_HANDLER = '@ohif/extension-cornerstone-dicom-seg.sopClassHandlerModule.dicom-seg';
+const SEGMENTATION_SOP_CLASS_HANDLER =
+  '@ohif/extension-cornerstone-dicom-seg.sopClassHandlerModule.dicom-seg';
 
 const DEFAULT_DIRECT_LAUNCH_REVIEWER_ID = 'R03';
 const DEFAULT_DIRECT_LAUNCH_CONDITION: Condition = 'C2';
@@ -350,9 +359,7 @@ const CONDITION_ROUTE_SUFFIXES: Record<string, string> = {
 };
 
 function paramsFromSearch(search: string): URLSearchParams {
-  return new URLSearchParams(
-    search.startsWith('?') ? search.slice(1) : search,
-  );
+  return new URLSearchParams(search.startsWith('?') ? search.slice(1) : search);
 }
 
 function searchFromParams(params: URLSearchParams): string {
@@ -391,10 +398,7 @@ function replaceRouteParams(updates: Record<string, string | null>): void {
   replaceState.call(window.history, null, '', url.toString());
 }
 
-function ensureDefaultDirectLaunchSession(
-  search: string,
-  defaultCondition?: Condition,
-): string {
+function ensureDefaultDirectLaunchSession(search: string, defaultCondition?: Condition): string {
   const condition = defaultCondition ?? DEFAULT_DIRECT_LAUNCH_CONDITION;
   const params = paramsFromSearch(search);
   const updates: Record<string, string | null> = {};
@@ -417,11 +421,12 @@ function ensureDefaultDirectLaunchSession(
 
 function getStudyInstanceUIDsFromSearch(search: string): string[] {
   const params = paramsFromSearch(search);
-  const raw = params.get('StudyInstanceUIDs')
-    ?? params.get('studyInstanceUIDs')
-    ?? params.get('StudyInstanceUID')
-    ?? params.get('studyInstanceUID')
-    ?? '';
+  const raw =
+    params.get('StudyInstanceUIDs') ??
+    params.get('studyInstanceUIDs') ??
+    params.get('StudyInstanceUID') ??
+    params.get('studyInstanceUID') ??
+    '';
 
   return raw
     .split(/[\\,]/)
@@ -431,7 +436,7 @@ function getStudyInstanceUIDsFromSearch(search: string): string[] {
 
 function inferCaseIdFromSelectedStudy(
   search: string,
-  uncertaintyService: UncertaintyService,
+  uncertaintyService: UncertaintyService
 ): string | null {
   const params = paramsFromSearch(search);
   const explicit = params.get('caseId') ?? params.get('case_id');
@@ -440,14 +445,16 @@ function inferCaseIdFromSelectedStudy(
   const items = uncertaintyService.getState().worklist.items;
 
   if (explicit) {
-    const explicitMatch = items.find(item =>
-      item.case_id === explicit || item.study_uid === explicit || item.series_uid === explicit,
+    const explicitMatch = items.find(
+      item =>
+        item.case_id === explicit || item.study_uid === explicit || item.series_uid === explicit
     );
     if (explicitMatch) return explicitMatch.case_id;
   }
 
-  const selectedMatch = items.find(item =>
-    selected.has(item.case_id) || selected.has(item.study_uid) || selected.has(item.series_uid),
+  const selectedMatch = items.find(
+    item =>
+      selected.has(item.case_id) || selected.has(item.study_uid) || selected.has(item.series_uid)
   );
   if (selectedMatch) return selectedMatch.case_id;
 
@@ -472,9 +479,7 @@ function mergeStoredSessionIntoSearch(search: string): string {
   }
   if (!stored?.reviewerId || !stored?.condition) return search;
 
-  const params = new URLSearchParams(
-    search.startsWith('?') ? search.slice(1) : search,
-  );
+  const params = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search);
   if (!params.get('reviewer')) params.set('reviewer', stored.reviewerId);
   if (!params.get('condition')) params.set('condition', stored.condition);
 
@@ -489,7 +494,7 @@ function rememberSessionForRoute(session: ReturnType<typeof parseSessionFromSear
       JSON.stringify({
         reviewerId: session.reviewerId,
         condition: session.condition,
-      }),
+      })
     );
   } catch {
     // Private browsing / blocked storage should not break the review mode.
@@ -508,19 +513,23 @@ function getSegmentationIdentifier(segmentation: AnyServices): string | null {
   return segmentation?.segmentationId ?? segmentation?.id ?? null;
 }
 
-function segmentationReferencesVolume(segmentation: AnyServices, referenceVolumeId: string): boolean {
-  const repr = segmentation?.representationData?.LABELMAP
-    ?? segmentation?.representationData?.Labelmap
-    ?? segmentation?.representationData;
+function segmentationReferencesVolume(
+  segmentation: AnyServices,
+  referenceVolumeId: string
+): boolean {
+  const repr =
+    segmentation?.representationData?.LABELMAP ??
+    segmentation?.representationData?.Labelmap ??
+    segmentation?.representationData;
 
-  return repr?.referencedVolumeId === referenceVolumeId
-    || repr?.volumeId === referenceVolumeId;
+  return repr?.referencedVolumeId === referenceVolumeId || repr?.volumeId === referenceVolumeId;
 }
 
 function segmentationHasVolumeReference(segmentation: AnyServices): boolean {
-  const repr = segmentation?.representationData?.LABELMAP
-    ?? segmentation?.representationData?.Labelmap
-    ?? segmentation?.representationData;
+  const repr =
+    segmentation?.representationData?.LABELMAP ??
+    segmentation?.representationData?.Labelmap ??
+    segmentation?.representationData;
 
   return Boolean(repr?.referencedVolumeId || repr?.volumeId);
 }
@@ -545,10 +554,10 @@ export function resolveSegmentationIdForReference({
   if (preferredSegmentationId && typeof segmentationService.getSegmentation === 'function') {
     const preferred = segmentationService.getSegmentation(preferredSegmentationId);
     if (
-      preferred
-      && (!referenceVolumeId
-        || !segmentationHasVolumeReference(preferred)
-        || segmentationReferencesVolume(preferred, referenceVolumeId))
+      preferred &&
+      (!referenceVolumeId ||
+        !segmentationHasVolumeReference(preferred) ||
+        segmentationReferencesVolume(preferred, referenceVolumeId))
     ) {
       return preferredSegmentationId;
     }
@@ -557,10 +566,12 @@ export function resolveSegmentationIdForReference({
   // v3.10+: getSegmentationsByReferenceVolumeId(...)
   if (typeof segmentationService.getSegmentationsByReferenceVolumeId === 'function') {
     const segmentations = normalizeSegmentations(
-      segmentationService.getSegmentationsByReferenceVolumeId(referenceVolumeId),
+      segmentationService.getSegmentationsByReferenceVolumeId(referenceVolumeId)
     );
     const preferred = preferredSegmentationId
-      ? segmentations.find(segmentation => getSegmentationIdentifier(segmentation) === preferredSegmentationId)
+      ? segmentations.find(
+          segmentation => getSegmentationIdentifier(segmentation) === preferredSegmentationId
+        )
       : null;
     const match = preferred ?? segmentations.find(Boolean);
     const matchId = getSegmentationIdentifier(match);
@@ -578,9 +589,9 @@ export function resolveSegmentationIdForReference({
       segmentationReferencesVolume(segmentation, referenceVolumeId)
     );
     const preferred = preferredSegmentationId
-      ? referenceMatches.find(segmentation =>
-        getSegmentationIdentifier(segmentation) === preferredSegmentationId
-      )
+      ? referenceMatches.find(
+          segmentation => getSegmentationIdentifier(segmentation) === preferredSegmentationId
+        )
       : null;
     const match = preferred ?? referenceMatches[0];
     const matchId = getSegmentationIdentifier(match);
@@ -609,7 +620,7 @@ export function resolveSegmentationIdForReference({
       ? (vpId: string) => segApi.getActiveSegmentation(vpId)
       : typeof segApi.activeSegmentation?.getActiveSegmentation === 'function'
         ? (vpId: string) => segApi.activeSegmentation.getActiveSegmentation(vpId)
-      : undefined;
+        : undefined;
 
   // V3 API: segmentation.state.getViewportIdsWithSegmentation(segmentationId)
   // requires a segmentationId argument (unlike V2 which accepted none to mean "all").
@@ -662,9 +673,9 @@ export function resolveSegmentationIdForReference({
 
   // Fallback: use all segmentations we collected, preferring volume match
   if (allCS.length > 0) {
-    const refMatch = allCS.find((seg: AnyServices) =>
-      segmentationReferencesVolume(seg, referenceVolumeId)
-    ) ?? allCS.find(Boolean);
+    const refMatch =
+      allCS.find((seg: AnyServices) => segmentationReferencesVolume(seg, referenceVolumeId)) ??
+      allCS.find(Boolean);
     const matchId = getSegmentationIdentifier(refMatch);
     if (matchId) return matchId;
   }
@@ -673,14 +684,15 @@ export function resolveSegmentationIdForReference({
 }
 
 function buildRuntimeDependencies(servicesManager: AnyServices) {
-  const fetchImpl = globalThis.fetch?.bind(globalThis)
-    ?? (() => Promise.reject(new Error('[uncertainty-review] fetch is not available')));
+  const fetchImpl =
+    globalThis.fetch?.bind(globalThis) ??
+    (() => Promise.reject(new Error('[uncertainty-review] fetch is not available')));
   const cornerstoneAdapter = createCornerstoneAdapter({
     getRenderingEngine: () =>
       servicesManager.services.cornerstoneViewportService?.getRenderingEngine?.(),
     getViewport: (viewportId: string) =>
-      servicesManager.services.cornerstoneViewportService?.getCornerstoneViewport?.(viewportId)
-      ?? null,
+      servicesManager.services.cornerstoneViewportService?.getCornerstoneViewport?.(viewportId) ??
+      null,
   });
 
   const segmentationExporter = createSegmentationExportAdapter({
@@ -727,15 +739,11 @@ function configureUncertaintyRuntimeDependencies({
     exporter: deps.segmentationExporter,
     segmentationImporter: deps.segmentationImporter,
     openCaseCommand: (caseId: string) =>
-      openUncertaintyCase(
-        { caseId },
-        buildOpenCaseHost({ servicesManager, extensionManager }),
-      ),
+      openUncertaintyCase({ caseId }, buildOpenCaseHost({ servicesManager, extensionManager })),
   });
 
   if (extensionManager?._appConfig) {
-    extensionManager._appConfig.uncertainty =
-      extensionManager._appConfig.uncertainty ?? {};
+    extensionManager._appConfig.uncertainty = extensionManager._appConfig.uncertainty ?? {};
     extensionManager._appConfig.uncertainty.cornerstoneAdapter = deps.cornerstoneAdapter;
     extensionManager._appConfig.uncertainty.segmentationExporter = deps.segmentationExporter;
     extensionManager._appConfig.uncertainty.segmentationImporter = deps.segmentationImporter;
@@ -763,14 +771,13 @@ function buildOpenCaseHost({
   servicesManager: AnyServices;
   extensionManager: AnyServices;
 }): OpenCaseHost {
-  const uncertaintyService: UncertaintyService =
-    servicesManager.services.uncertaintyService;
+  const uncertaintyService: UncertaintyService = servicesManager.services.uncertaintyService;
 
   return {
     getWorklistEntry(caseId: string): WorklistEntry | null {
       const items = uncertaintyService.getState().worklist.items;
-      const fromWorklist = items.find(it =>
-        it.case_id === caseId || it.study_uid === caseId || it.series_uid === caseId,
+      const fromWorklist = items.find(
+        it => it.case_id === caseId || it.study_uid === caseId || it.series_uid === caseId
       );
       if (fromWorklist) return fromWorklist;
 
@@ -779,9 +786,7 @@ function buildOpenCaseHost({
       // the uncertainty worklist. Without this, buildOpenPlan returns
       // unknown_case, UncertaintyService never receives openManualCase/openCase,
       // and the Submission/Uncertainty panels stay disabled forever.
-      const ds = firstDisplaySetWithStudyAndSeries(
-        servicesManager.services.displaySetService,
-      );
+      const ds = firstDisplaySetWithStudyAndSeries(servicesManager.services.displaySetService);
       const fallbackStudyUID = studyUID(ds);
       const fallbackSeriesUID = seriesUID(ds);
       if (!fallbackStudyUID || !fallbackSeriesUID) return null;
@@ -797,8 +802,7 @@ function buildOpenCaseHost({
         status: 'ready',
       };
     },
-    getCondition: () =>
-      uncertaintyService.getState().session?.condition ?? null,
+    getCondition: () => uncertaintyService.getState().session?.condition ?? null,
     servicesManager,
     async loadStudy({ studyInstanceUID, seriesInstanceUID }) {
       // If the display set for this series already exists, the study was
@@ -813,8 +817,8 @@ function buildOpenCaseHost({
       // The data source's `retrieve.series.metadata` is the DICOMweb-canonical
       // way to fetch a specific series. It retrieves instances, stores them in
       // DicomMetadataStore, and triggers display set creation.
-      const ds = extensionManager?.getActiveDataSource?.()?.[0]
-        ?? extensionManager?.getDataSources?.()?.[0];
+      const ds =
+        extensionManager?.getActiveDataSource?.()?.[0] ?? extensionManager?.getDataSources?.()?.[0];
       if (!ds) {
         throw new Error('[openUncertaintyCase] No active data source.');
       }
@@ -825,7 +829,7 @@ function buildOpenCaseHost({
         });
       } else {
         throw new Error(
-          '[openUncertaintyCase] Active data source has no retrieve.series.metadata method. Cannot load DICOM.',
+          '[openUncertaintyCase] Active data source has no retrieve.series.metadata method. Cannot load DICOM.'
         );
       }
     },
@@ -835,7 +839,7 @@ function buildOpenCaseHost({
       const referenceVolumeId = `cornerstoneStreamingImageVolume:${uid}`;
       await ensureReferenceVolumeCached(
         referenceVolumeId,
-        findDisplaySetForSeries(dss, seriesInstanceUID),
+        findDisplaySetForSeries(dss, seriesInstanceUID)
       );
 
       return referenceVolumeId;
@@ -851,16 +855,14 @@ function buildOpenCaseHost({
       const viewports = state?.viewports;
       if (viewports instanceof Map) {
         ids.push(...Array.from(viewports.keys()).map(k => maybeString(k)));
-        ids.push(...Array.from(viewports.values()).map(v =>
-          maybeString(v?.viewportId ?? v?.id),
-        ));
+        ids.push(...Array.from(viewports.values()).map(v => maybeString(v?.viewportId ?? v?.id)));
       } else if (Array.isArray(viewports)) {
         ids.push(...viewports.map(v => maybeString(v?.viewportId ?? v?.id)));
       } else if (viewports && typeof viewports === 'object') {
         ids.push(...Object.keys(viewports));
-        ids.push(...Object.values(viewports).map((v: AnyServices) =>
-          maybeString(v?.viewportId ?? v?.id),
-        ));
+        ids.push(
+          ...Object.values(viewports).map((v: AnyServices) => maybeString(v?.viewportId ?? v?.id))
+        );
       }
 
       ids.push(...asList(csv?.getViewportIds?.()).map(v => maybeString(v)));
@@ -890,7 +892,7 @@ interface ModeConfigOverrides {
 
 function onModeEnter(
   args: OnModeEnterArgs,
-  modeOpts: { modeConfiguration?: ModeConfigOverrides },
+  modeOpts: { modeConfiguration?: ModeConfigOverrides }
 ): void {
   const { servicesManager, extensionManager, commandsManager } = args;
   const cfg = modeOpts.modeConfiguration ?? {};
@@ -904,12 +906,7 @@ function onModeEnter(
     initToolGroups(extensionManager, toolGroupService, commandsManager);
     toolbarService.addButtons(toolbarButtons);
     toolbarService.addButtons(segmentationButtons);
-    toolbarService.createButtonSection('primary', [
-      'WindowLevel',
-      'Pan',
-      'Zoom',
-      'Capture',
-    ]);
+    toolbarService.createButtonSection('primary', ['WindowLevel', 'Pan', 'Zoom', 'Capture']);
     toolbarService.createButtonSection('segmentationToolbox', ['BrushTools', 'Shapes']);
   }
 
@@ -972,19 +969,17 @@ function onModeEnter(
 
   // 1. Parse session from URL — falls back to whatever the extension
   //    already parsed at preRegistration if the URL doesn't have one.
-  const rawSearch = cfg.sessionSearch
-    ?? getCurrentRouteSearch();
+  const rawSearch = cfg.sessionSearch ?? getCurrentRouteSearch();
   const directLaunchSearch = ensureDefaultDirectLaunchSession(rawSearch, cfg.defaultCondition);
   const search = mergeStoredSessionIntoSearch(directLaunchSearch);
   const session = parseSessionFromSearch(search);
-  const uncertaintyService: UncertaintyService =
-    servicesManager.services.uncertaintyService;
+  const uncertaintyService: UncertaintyService = servicesManager.services.uncertaintyService;
 
   if (!uncertaintyService) {
     // eslint-disable-next-line no-console
     console.error(
       `[${MODE_ID}] uncertaintyService not registered. ` +
-      'Make sure @thesis/extension-uncertainty is in the extensions list.',
+        'Make sure @thesis/extension-uncertainty is in the extensions list.'
     );
     return;
   }
@@ -1008,7 +1003,7 @@ function onModeEnter(
     // eslint-disable-next-line no-console
     console.warn(
       `[${MODE_ID}] No reviewer/condition in URL. ` +
-      'Add ?reviewer=R03&condition=C2 (etc.) to enable session-scoped events.',
+        'Add ?reviewer=R03&condition=C2 (etc.) to enable session-scoped events.'
     );
   }
 
@@ -1031,9 +1026,7 @@ function onModeEnter(
     const openInitialCase = () => {
       const items = uncertaintyService.getState().worklist.items;
       const explicit = session?.initialCaseId ?? null;
-      const explicitIsRealCase = explicit
-        ? items.some(it => it.case_id === explicit)
-        : false;
+      const explicitIsRealCase = explicit ? items.some(it => it.case_id === explicit) : false;
       const inferred = inferCaseIdFromSelectedStudy(search, uncertaintyService);
       const caseId = explicitIsRealCase ? explicit : (inferred ?? explicit);
 
@@ -1041,7 +1034,7 @@ function onModeEnter(
         // eslint-disable-next-line no-console
         console.warn(
           `[${MODE_ID}] Study List launch did not include caseId, and no ` +
-          'worklist entry matched the selected StudyInstanceUIDs. Cannot auto-open.',
+            'worklist entry matched the selected StudyInstanceUIDs. Cannot auto-open.'
         );
         return;
       }
@@ -1050,7 +1043,7 @@ function onModeEnter(
       uncertaintyService.selectCase?.({ caseId });
       void openUncertaintyCase(
         { caseId },
-        buildOpenCaseHost({ servicesManager, extensionManager }),
+        buildOpenCaseHost({ servicesManager, extensionManager })
       ).catch((err: Error) => {
         // eslint-disable-next-line no-console
         console.warn(`[${MODE_ID}] Initial case open failed:`, err);
@@ -1087,9 +1080,10 @@ function onModeExit({ servicesManager }: OnModeExitArgs): void {
 function modeFactory({ modeConfiguration }: ModeFactoryArgs = {}) {
   // Derive display name and route from condition (or defaults).
   const condition = modeConfiguration?.defaultCondition ?? 'C2';
-  const displayName = modeConfiguration?.displayName
-    ?? CONDITION_DISPLAY_NAMES[condition]
-    ?? 'Uncertainty-Guided Review';
+  const displayName =
+    modeConfiguration?.displayName ??
+    CONDITION_DISPLAY_NAMES[condition] ??
+    'Uncertainty-Guided Review';
   const routeSuffix = CONDITION_ROUTE_SUFFIXES[condition] ?? 'uncertainty-review';
   // Unique mode ID per condition so the study list shows three separate buttons.
   const modeId = condition === 'C2' ? MODE_ID : `${MODE_ID}-${condition.toLowerCase()}`;
@@ -1125,9 +1119,7 @@ function modeFactory({ modeConfiguration }: ModeFactoryArgs = {}) {
         layoutTemplate: () => ({
           id: '@ohif/extension-default.layoutTemplateModule.viewerLayout',
           props: {
-            leftPanels: [
-              `${EXTENSION_ID}.panelModule.worklist`,
-            ],
+            leftPanels: [`${EXTENSION_ID}.panelModule.worklist`],
             rightPanels: [
               SEGMENTATION_PANEL_WITH_TOOLS,
               MONAI_LABEL_PANEL,
@@ -1136,11 +1128,8 @@ function modeFactory({ modeConfiguration }: ModeFactoryArgs = {}) {
             ],
             viewports: [
               {
-                namespace:
-                  '@ohif/extension-cornerstone.viewportModule.cornerstone',
-                displaySetsToDisplay: [
-                  '@ohif/extension-default.sopClassHandlerModule.stack',
-                ],
+                namespace: '@ohif/extension-cornerstone.viewportModule.cornerstone',
+                displaySetsToDisplay: ['@ohif/extension-default.sopClassHandlerModule.stack'],
               },
               {
                 namespace: SEGMENTATION_VIEWPORT,
@@ -1172,14 +1161,18 @@ function modeFactory({ modeConfiguration }: ModeFactoryArgs = {}) {
      */
     hotkeys: [
       ...hotkeys.defaults.hotkeyBindings,
-      { commandName: 'toggleUncertaintyHeatmap',
-        label: 'Toggle uncertainty heatmap', keys: ['u'] },
-      { commandName: 'acceptUncertaintyAnnotation',
-        label: 'Accept current annotation', keys: ['a'] },
-      { commandName: 'rejectUncertaintyAnnotation',
-        label: 'Reject current annotation', keys: ['r'] },
-      { commandName: 'refreshUncertaintyWorklist',
-        label: 'Refresh worklist', keys: ['shift+u'] },
+      { commandName: 'toggleUncertaintyHeatmap', label: 'Toggle uncertainty heatmap', keys: ['u'] },
+      {
+        commandName: 'acceptUncertaintyAnnotation',
+        label: 'Accept current annotation',
+        keys: ['a'],
+      },
+      {
+        commandName: 'rejectUncertaintyAnnotation',
+        label: 'Reject current annotation',
+        keys: ['r'],
+      },
+      { commandName: 'refreshUncertaintyWorklist', label: 'Refresh worklist', keys: ['shift+u'] },
     ],
   };
 }
@@ -1198,24 +1191,19 @@ interface CommandsModuleArgs {
   extensionManager: AnyServices;
 }
 
-function getCommandsModule({
-  servicesManager,
-  extensionManager,
-}: CommandsModuleArgs) {
+function getCommandsModule({ servicesManager, extensionManager }: CommandsModuleArgs) {
   configureUncertaintyRuntimeDependencies({
     servicesManager,
     extensionManager,
   });
 
-  const buildHost = (): OpenCaseHost =>
-    buildOpenCaseHost({ servicesManager, extensionManager });
+  const buildHost = (): OpenCaseHost => buildOpenCaseHost({ servicesManager, extensionManager });
 
   return {
     definitions: {
       openUncertaintyCase: {
         commandName: 'openUncertaintyCase',
-        commandFn: (args: { caseId: string }) =>
-          openUncertaintyCase(args, buildHost()),
+        commandFn: (args: { caseId: string }) => openUncertaintyCase(args, buildHost()),
       },
     },
   };
@@ -1236,10 +1224,7 @@ export default mode;
 export { MODE_ID as id };
 export { modeFactory };
 export { getCommandsModule };
-export {
-  parseSessionFromSearch,
-  describeSession,
-} from './sessionConfig';
+export { parseSessionFromSearch, describeSession } from './sessionConfig';
 export {
   buildOpenPlan,
   executeOpen,

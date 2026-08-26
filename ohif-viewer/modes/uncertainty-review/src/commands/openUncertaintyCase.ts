@@ -22,11 +22,7 @@
  * the viewport IDs to attach the heatmap to.
  */
 
-import type {
-  Condition,
-  UncertaintyService,
-  WorklistEntry,
-} from '@thesis/extension-uncertainty';
+import type { Condition, UncertaintyService, WorklistEntry } from '@thesis/extension-uncertainty';
 
 const INFERENCE_IMPORT_TIMEOUT_MS = 1_800_000;
 
@@ -40,10 +36,7 @@ type AnyService = any;
 type ManualOpenUncertaintyService = UncertaintyService & {
   selectCase?(args: { caseId: string }): void;
   markCaseOpenFailed?(args: { caseId: string; error: string }): void;
-  openManualCase(args: {
-    caseId: string;
-    referenceVolumeId?: string;
-  }): Promise<void>;
+  openManualCase(args: { caseId: string; referenceVolumeId?: string }): Promise<void>;
 };
 
 export interface OpenCaseHost {
@@ -62,10 +55,7 @@ export interface OpenCaseHost {
     };
   };
   /** Tell OHIF's data source to retrieve the DICOM series for this case. */
-  loadStudy(args: {
-    studyInstanceUID: string;
-    seriesInstanceUID: string;
-  }): Promise<void>;
+  loadStudy(args: { studyInstanceUID: string; seriesInstanceUID: string }): Promise<void>;
   /** Resolve the Cornerstone volume id for a loaded series. */
   resolveImageVolumeId(seriesInstanceUID: string): Promise<string>;
   /** Resolve the active viewport ids the heatmap should attach to. */
@@ -114,7 +104,8 @@ export function buildOpenPlan(args: {
   // Heatmap is attached for C2 (entropy), C3 (placebo saliency), C5 (entropy, no reorder).
   const runInference = args.condition !== 'C0';
   const importAiSegmentation = args.condition !== 'C0';
-  const attachHeatmap = args.condition === 'C2' || args.condition === 'C3' || args.condition === 'C5';
+  const attachHeatmap =
+    args.condition === 'C2' || args.condition === 'C3' || args.condition === 'C5';
 
   return {
     caseId: args.caseId,
@@ -134,17 +125,10 @@ function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-async function withTimeout<T>(
-  promise: Promise<T>,
-  ms: number,
-  label: string,
-): Promise<T> {
+async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
   let handle: ReturnType<typeof setTimeout> | null = null;
   const timeout = new Promise<never>((_, reject) => {
-    handle = setTimeout(
-      () => reject(new Error(`${label} timed out after ${ms} ms`)),
-      ms,
-    );
+    handle = setTimeout(() => reject(new Error(`${label} timed out after ${ms} ms`)), ms);
   });
   try {
     return await Promise.race([promise, timeout]);
@@ -156,7 +140,7 @@ async function withTimeout<T>(
 async function waitForActiveViewportIds(
   host: OpenCaseHost,
   timeoutMs = 5_000,
-  intervalMs = 200,
+  intervalMs = 200
 ): Promise<string[]> {
   const started = Date.now();
   let last: string[] = [];
@@ -190,10 +174,7 @@ function errorMessage(err: unknown): string {
  * shows an error toast and the reviewer retries; we don't try to
  * roll back DICOM loads.
  */
-export async function executeOpen(
-  plan: OpenPlan,
-  host: OpenCaseHost,
-): Promise<void> {
+export async function executeOpen(plan: OpenPlan, host: OpenCaseHost): Promise<void> {
   try {
     // OHIF's retrieve promise can remain pending during direct Study List
     // launches, even when the image is already visible in the viewport. Do not
@@ -204,7 +185,7 @@ export async function executeOpen(
         seriesInstanceUID: plan.seriesInstanceUID,
       }),
       60_000,
-      `[openUncertaintyCase] DICOM load for ${plan.caseId}`,
+      `[openUncertaintyCase] DICOM load for ${plan.caseId}`
     );
   } catch (err) {
     // If a display set is already present, continue and let the volume/import
@@ -216,22 +197,14 @@ export async function executeOpen(
   const referenceVolumeId = await withTimeout(
     host.resolveImageVolumeId(plan.seriesInstanceUID),
     60_000,
-    `[openUncertaintyCase] volume resolution for ${plan.caseId}`,
+    `[openUncertaintyCase] volume resolution for ${plan.caseId}`
   );
 
-  if (!plan.runInference) {
-    await host.servicesManager.services.uncertaintyService.openManualCase({
-      caseId: plan.caseId,
-      referenceVolumeId,
-    });
-    return;
-  }
-
   const viewportIds = await waitForActiveViewportIds(host);
-  if ((plan.importAiSegmentation || plan.attachHeatmap) && viewportIds.length === 0) {
+  if (viewportIds.length === 0) {
     throw new Error(
-      `[openUncertaintyCase] No active viewports to attach the AI mask/heatmap to after waiting. ` +
-      `Was the layout fully initialised before opening case ${plan.caseId}?`,
+      `[openUncertaintyCase] No active viewports available after waiting. ` +
+        `Was the layout fully initialised before opening case ${plan.caseId}?`
     );
   }
 
@@ -244,8 +217,7 @@ export async function executeOpen(
     const dss = host.servicesManager.services?.displaySetService;
     if (gridSvc && dss) {
       const newDisplaySet = dss.getDisplaySetsForSeries?.(plan.seriesInstanceUID)?.[0];
-      const dsUid = newDisplaySet?.displaySetInstanceUID
-        ?? newDisplaySet?.DisplaySetInstanceUID;
+      const dsUid = newDisplaySet?.displaySetInstanceUID ?? newDisplaySet?.DisplaySetInstanceUID;
       if (dsUid) {
         // Check if the viewport already shows this display set (first load).
         const state = gridSvc.getState?.();
@@ -257,13 +229,24 @@ export async function executeOpen(
         }
         if (!alreadyActive) {
           for (const vpId of viewportIds) {
-            gridSvc.setDisplaySetsForViewport?.({ viewportId: vpId, displaySetInstanceUIDs: [dsUid] });
+            gridSvc.setDisplaySetsForViewport?.({
+              viewportId: vpId,
+              displaySetInstanceUIDs: [dsUid],
+            });
           }
         }
       }
     }
   } catch {
     // Non-fatal.
+  }
+
+  if (!plan.runInference) {
+    await host.servicesManager.services.uncertaintyService.openManualCase({
+      caseId: plan.caseId,
+      referenceVolumeId,
+    });
+    return;
   }
 
   await withTimeout(
@@ -273,7 +256,7 @@ export async function executeOpen(
       viewportIds,
     }),
     INFERENCE_IMPORT_TIMEOUT_MS,
-    `[openUncertaintyCase] inference/import for ${plan.caseId}`,
+    `[openUncertaintyCase] inference/import for ${plan.caseId}`
   );
 }
 
@@ -283,7 +266,7 @@ export async function executeOpen(
 
 export async function openUncertaintyCase(
   args: { caseId: string },
-  host: OpenCaseHost,
+  host: OpenCaseHost
 ): Promise<void> {
   const condition = host.getCondition();
   const entry = host.getWorklistEntry(args.caseId);
@@ -302,7 +285,7 @@ export async function openUncertaintyCase(
     console.warn('[openUncertaintyCase] refusing to open:', planOrError);
     throw new Error(
       `Cannot open case ${resolvedCaseId}: ${planOrError.kind}` +
-      ('condition' in planOrError ? ` (${planOrError.condition})` : ''),
+        ('condition' in planOrError ? ` (${planOrError.condition})` : '')
     );
   }
 

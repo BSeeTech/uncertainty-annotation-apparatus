@@ -829,7 +829,12 @@ function commandsModule({
         toolGroupIds.forEach(getCrosshairInstances);
       } else {
         const toolGroup = toolGroupService.getToolGroupForViewport(viewportId);
-        getCrosshairInstances(toolGroup.id);
+        // Download/capture viewports are intentionally not registered with a
+        // normal interaction tool group. Their camera reset still emits the
+        // same event, so treat a missing group as "no crosshairs to reset".
+        if (toolGroup?.id) {
+          getCrosshairInstances(toolGroup.id);
+        }
       }
 
       crosshairInstances.forEach(ins => {

@@ -1,12 +1,33 @@
 import modeManifest, {
   getCommandsModule,
   id,
+  imageIdsFromDisplaySet,
   installReviewerTelemetry,
   modeFactory,
   resolveSegmentationIdForReference,
 } from '../index';
 import * as cornerstone from '@cornerstonejs/core';
 import * as cornerstoneTools from '@cornerstonejs/tools';
+
+describe('reference volume image selection', () => {
+  it('uses one canonical image-id source instead of duplicating slices across aliases', () => {
+    expect(
+      imageIdsFromDisplaySet({
+        imageIds: ['wadors:one', 'wadors:two'],
+        images: [{ imageId: 'dicomweb:one' }, { imageId: 'dicomweb:two' }],
+        instances: [{ wadorsuri: 'http://one' }, { wadorsuri: 'http://two' }],
+      })
+    ).toEqual(['wadors:one', 'wadors:two']);
+  });
+
+  it('falls back to image metadata when direct imageIds are unavailable', () => {
+    expect(
+      imageIdsFromDisplaySet({
+        images: [{ imageId: 'dicomweb:one' }, { imageId: 'dicomweb:two' }],
+      })
+    ).toEqual(['dicomweb:one', 'dicomweb:two']);
+  });
+});
 
 describe('review telemetry bridge', () => {
   it('subscribes core and segmentation events on the Cornerstone core target', () => {
@@ -16,34 +37,39 @@ describe('review telemetry bridge', () => {
     } as any;
     installReviewerTelemetry(service);
 
-    cornerstone.eventTarget.dispatchEvent(new CustomEvent(
-      cornerstone.Enums.Events.STACK_NEW_IMAGE,
-      { detail: { viewportId: 'vp1', imageIndex: 4 } },
-    ));
-    cornerstone.eventTarget.dispatchEvent(new CustomEvent(
-      cornerstone.Enums.Events.CAMERA_MODIFIED,
-      { detail: { viewportId: 'vp1' } },
-    ));
-    cornerstone.eventTarget.dispatchEvent(new CustomEvent(
-      cornerstoneTools.Enums.Events.SEGMENTATION_DATA_MODIFIED,
-      { detail: { segmentationId: 'seg1' } },
-    ));
-    cornerstone.eventTarget.dispatchEvent(new CustomEvent(
-      cornerstoneTools.Enums.Events.SEGMENTATION_REPRESENTATION_MODIFIED,
-      { detail: { segmentationId: 'seg1', type: 'Labelmap' } },
-    ));
+    cornerstone.eventTarget.dispatchEvent(
+      new CustomEvent(cornerstone.Enums.Events.STACK_NEW_IMAGE, {
+        detail: { viewportId: 'vp1', imageIndex: 4 },
+      })
+    );
+    cornerstone.eventTarget.dispatchEvent(
+      new CustomEvent(cornerstone.Enums.Events.CAMERA_MODIFIED, { detail: { viewportId: 'vp1' } })
+    );
+    cornerstone.eventTarget.dispatchEvent(
+      new CustomEvent(cornerstoneTools.Enums.Events.SEGMENTATION_DATA_MODIFIED, {
+        detail: { segmentationId: 'seg1' },
+      })
+    );
+    cornerstone.eventTarget.dispatchEvent(
+      new CustomEvent(cornerstoneTools.Enums.Events.SEGMENTATION_REPRESENTATION_MODIFIED, {
+        detail: { segmentationId: 'seg1', type: 'Labelmap' },
+      })
+    );
 
     expect(service.logViewerEvent).toHaveBeenCalledWith('slice_change', {
-      viewportId: 'vp1', imageIndex: 4,
+      viewportId: 'vp1',
+      imageIndex: 4,
     });
     expect(service.logViewerEvent).toHaveBeenCalledWith('viewport_change', {
       viewportId: 'vp1',
     });
     expect(service.recordSegmentationChange).toHaveBeenCalledWith({
-      segmentationId: 'seg1', modifiedSlicesToUse: null,
+      segmentationId: 'seg1',
+      modifiedSlicesToUse: null,
     });
     expect(service.logViewerEvent).toHaveBeenCalledWith('structure_focus', {
-      segmentationId: 'seg1', type: 'Labelmap',
+      segmentationId: 'seg1',
+      type: 'Labelmap',
     });
   });
 });
@@ -60,7 +86,7 @@ describe('mode factory', () => {
           '@ohif/extension-monai-label': expect.any(String),
           '@thesis/extension-uncertainty': expect.any(String),
         }),
-      }),
+      })
     );
   });
 
@@ -73,41 +99,43 @@ describe('mode factory', () => {
 
   it('declares the correct extension dependency list', () => {
     const mode = modeFactory();
-    expect(mode.extensions).toEqual(expect.objectContaining({
-      '@ohif/extension-default': expect.any(String),
-      '@ohif/extension-cornerstone': expect.any(String),
-      '@ohif/extension-monai-label': expect.any(String),
-      '@thesis/extension-uncertainty': expect.any(String),
-    }));
+    expect(mode.extensions).toEqual(
+      expect.objectContaining({
+        '@ohif/extension-default': expect.any(String),
+        '@ohif/extension-cornerstone': expect.any(String),
+        '@ohif/extension-monai-label': expect.any(String),
+        '@thesis/extension-uncertainty': expect.any(String),
+      })
+    );
   });
 
   it('mounts the worklist panel on the left and review controls on the right', () => {
     const mode = modeFactory();
     const route = mode.routes[0];
     const layout = route.layoutTemplate();
-    expect(layout.props.leftPanels).toContain(
-      '@thesis/extension-uncertainty.panelModule.worklist',
+    expect(layout.props.leftPanels).toContain('@thesis/extension-uncertainty.panelModule.worklist');
+    expect(layout.props.rightPanels).toContain(
+      '@thesis/extension-uncertainty.panelModule.uncertainty'
     );
     expect(layout.props.rightPanels).toContain(
-      '@thesis/extension-uncertainty.panelModule.uncertainty',
+      '@thesis/extension-uncertainty.panelModule.submission'
     );
     expect(layout.props.rightPanels).toContain(
-      '@thesis/extension-uncertainty.panelModule.submission',
-    );
-    expect(layout.props.rightPanels).toContain(
-      '@ohif/extension-monai-label.panelModule.monailabel',
+      '@ohif/extension-monai-label.panelModule.monailabel'
     );
   });
 
   it('declares the four expected hotkeys', () => {
     const mode = modeFactory();
     const commands = mode.hotkeys.map(h => h.commandName);
-    expect(commands).toEqual(expect.arrayContaining([
-      'toggleUncertaintyHeatmap',
-      'acceptUncertaintyAnnotation',
-      'rejectUncertaintyAnnotation',
-      'refreshUncertaintyWorklist',
-    ]));
+    expect(commands).toEqual(
+      expect.arrayContaining([
+        'toggleUncertaintyHeatmap',
+        'acceptUncertaintyAnnotation',
+        'rejectUncertaintyAnnotation',
+        'refreshUncertaintyWorklist',
+      ])
+    );
     // The toggle hotkey must be 'u' so the LR section on heatmap UX
     // matches the reviewer's actual experience during the user study.
     const toggle = mode.hotkeys.find(h => h.commandName === 'toggleUncertaintyHeatmap');
@@ -172,7 +200,7 @@ describe('onModeEnter', () => {
         exporter: expect.objectContaining({
           exportSegmentationAsNiftiBlob: expect.any(Function),
         }),
-      }),
+      })
     );
   });
 
@@ -212,8 +240,10 @@ describe('onModeEnter', () => {
       extensionManager: {},
       commandsManager: {},
     } as any);
-    expect(services.services.uncertaintyService.setSession)
-      .toHaveBeenCalledWith({ reviewerId: 'R03', condition: 'C2' });
+    expect(services.services.uncertaintyService.setSession).toHaveBeenCalledWith({
+      reviewerId: 'R03',
+      condition: 'C2',
+    });
     expect(warn).not.toHaveBeenCalled();
     warn.mockRestore();
   });
@@ -230,14 +260,16 @@ describe('onModeEnter', () => {
       getState: () => ({
         session: { reviewerId: 'R03', condition: 'C2' },
         worklist: {
-          items: [{
-            case_id: 'case_007',
-            study_uid: 'study_007',
-            series_uid: 'series_007',
-            score: null,
-            score_band: null,
-            status: 'ready',
-          }],
+          items: [
+            {
+              case_id: 'case_007',
+              study_uid: 'study_007',
+              series_uid: 'series_007',
+              score: null,
+              score_band: null,
+              status: 'ready',
+            },
+          ],
         },
       }),
       selectCase: jest.fn(),
@@ -246,11 +278,13 @@ describe('onModeEnter', () => {
     });
     const runCommand = jest.fn();
     services.services.displaySetService = {
-      getDisplaySetsForSeries: jest.fn(() => [{
-        displaySetInstanceUID: 'display_set_007',
-        StudyInstanceUID: 'study_007',
-        SeriesInstanceUID: 'series_007',
-      }]),
+      getDisplaySetsForSeries: jest.fn(() => [
+        {
+          displaySetInstanceUID: 'display_set_007',
+          StudyInstanceUID: 'study_007',
+          SeriesInstanceUID: 'series_007',
+        },
+      ]),
     };
     services.services.viewportGridService = {
       getState: jest.fn(() => ({ activeViewportId: 'viewport_1' })),
@@ -260,11 +294,13 @@ describe('onModeEnter', () => {
     };
     const metadata = jest.fn().mockResolvedValue(undefined);
     const extensionManager = {
-      getActiveDataSource: jest.fn(() => [{
-        retrieve: {
-          series: { metadata },
+      getActiveDataSource: jest.fn(() => [
+        {
+          retrieve: {
+            series: { metadata },
+          },
         },
-      }]),
+      ]),
     };
     const mode = modeFactory({
       modeConfiguration: {
@@ -305,14 +341,16 @@ describe('onModeEnter', () => {
       getState: () => ({
         session: { reviewerId: 'R03', condition: 'C2' },
         worklist: {
-          items: [{
-            case_id: 'case_008',
-            study_uid: 'study_008',
-            series_uid: 'series_008',
-            score: null,
-            score_band: null,
-            status: 'ready',
-          }],
+          items: [
+            {
+              case_id: 'case_008',
+              study_uid: 'study_008',
+              series_uid: 'series_008',
+              score: null,
+              score_band: null,
+              status: 'ready',
+            },
+          ],
         },
       }),
       selectCase: jest.fn(),
@@ -320,13 +358,16 @@ describe('onModeEnter', () => {
       markCaseOpenFailed: jest.fn(),
     });
     services.services.displaySetService = {
-      getDisplaySetsForSeries: jest.fn()
+      getDisplaySetsForSeries: jest
+        .fn()
         .mockReturnValueOnce([])
-        .mockReturnValue([{
-          displaySetInstanceUID: 'display_set_008',
-          StudyInstanceUID: 'study_008',
-          SeriesInstanceUID: 'series_008',
-        }]),
+        .mockReturnValue([
+          {
+            displaySetInstanceUID: 'display_set_008',
+            StudyInstanceUID: 'study_008',
+            SeriesInstanceUID: 'series_008',
+          },
+        ]),
     };
     services.services.viewportGridService = {
       getState: jest.fn(() => ({ activeViewportId: 'viewport_1' })),
@@ -335,11 +376,13 @@ describe('onModeEnter', () => {
       getViewportIds: jest.fn(() => []),
     };
     const extensionManager = {
-      getActiveDataSource: jest.fn(() => [{
-        retrieve: {
-          series: { metadata: jest.fn().mockResolvedValue(undefined) },
+      getActiveDataSource: jest.fn(() => [
+        {
+          retrieve: {
+            series: { metadata: jest.fn().mockResolvedValue(undefined) },
+          },
         },
-      }]),
+      ]),
     };
     const mode = modeFactory({
       modeConfiguration: {
@@ -383,14 +426,16 @@ describe('onModeEnter', () => {
       getState: () => ({
         session: { reviewerId: 'R03', condition: 'C2' },
         worklist: {
-          items: [{
-            case_id: 'case_009',
-            study_uid: 'study_009',
-            series_uid: 'series_009',
-            score: null,
-            score_band: null,
-            status: 'ready',
-          }],
+          items: [
+            {
+              case_id: 'case_009',
+              study_uid: 'study_009',
+              series_uid: 'series_009',
+              score: null,
+              score_band: null,
+              status: 'ready',
+            },
+          ],
         },
       }),
       selectCase: jest.fn(),
@@ -398,12 +443,14 @@ describe('onModeEnter', () => {
       markCaseOpenFailed: jest.fn(),
     });
     services.services.displaySetService = {
-      getDisplaySetsForSeries: jest.fn(() => [{
-        displaySetInstanceUID: 'display_set_009',
-        StudyInstanceUID: 'study_009',
-        SeriesInstanceUID: 'series_009',
-        imageIds: ['wadors:image-1', 'wadors:image-2'],
-      }]),
+      getDisplaySetsForSeries: jest.fn(() => [
+        {
+          displaySetInstanceUID: 'display_set_009',
+          StudyInstanceUID: 'study_009',
+          SeriesInstanceUID: 'series_009',
+          imageIds: ['wadors:image-1', 'wadors:image-2'],
+        },
+      ]),
     };
     services.services.viewportGridService = {
       getState: jest.fn(() => ({ activeViewportId: 'viewport_1' })),
@@ -412,11 +459,13 @@ describe('onModeEnter', () => {
       getViewportIds: jest.fn(() => []),
     };
     const extensionManager = {
-      getActiveDataSource: jest.fn(() => [{
-        retrieve: {
-          series: { metadata: jest.fn().mockResolvedValue(undefined) },
+      getActiveDataSource: jest.fn(() => [
+        {
+          retrieve: {
+            series: { metadata: jest.fn().mockResolvedValue(undefined) },
+          },
         },
-      }]),
+      ]),
     };
     const mode = modeFactory({
       modeConfiguration: {
@@ -438,7 +487,7 @@ describe('onModeEnter', () => {
 
     expect(core.volumeLoader.createAndCacheVolume).toHaveBeenCalledWith(
       'cornerstoneStreamingImageVolume:display_set_009',
-      { imageIds: ['wadors:image-1', 'wadors:image-2'] },
+      { imageIds: ['wadors:image-1', 'wadors:image-2'] }
     );
     expect(load).toHaveBeenCalled();
     expect(openCase).toHaveBeenCalledWith({
@@ -449,16 +498,18 @@ describe('onModeEnter', () => {
   });
 
   it('logs an error rather than throwing when the extension is missing', () => {
-    const services = makeServicesManager(null);   // extension not loaded
+    const services = makeServicesManager(null); // extension not loaded
     const errSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
     const mode = modeFactory({
       modeConfiguration: { sessionSearch: '?reviewer=R03&condition=C2' },
     });
-    expect(() => mode.onModeEnter({
-      servicesManager: services,
-      extensionManager: {},
-      commandsManager: {},
-    } as any)).not.toThrow();
+    expect(() =>
+      mode.onModeEnter({
+        servicesManager: services,
+        extensionManager: {},
+        commandsManager: {},
+      } as any)
+    ).not.toThrow();
     expect(errSpy).toHaveBeenCalled();
     errSpy.mockRestore();
   });
@@ -476,9 +527,11 @@ describe('onModeExit', () => {
 
   it('is a no-op when the service is missing', () => {
     const mode = modeFactory();
-    expect(() => mode.onModeExit({
-      servicesManager: { services: {} },
-    } as any)).not.toThrow();
+    expect(() =>
+      mode.onModeExit({
+        servicesManager: { services: {} },
+      } as any)
+    ).not.toThrow();
   });
 });
 
@@ -517,7 +570,7 @@ describe('getCommandsModule runtime dependency wiring', () => {
           segmentationImporter: expect.objectContaining({
             importSegmentation: expect.any(Function),
           }),
-        }),
+        })
       );
     } finally {
       globalThis.fetch = originalFetch;
@@ -547,28 +600,34 @@ describe('resolveSegmentationIdForReference', () => {
       ]),
     };
 
-    expect(resolveSegmentationIdForReference({
-      segmentationService,
-      referenceVolumeId,
-      preferredSegmentationId: importedSegmentationId,
-    })).toBe(importedSegmentationId);
+    expect(
+      resolveSegmentationIdForReference({
+        segmentationService,
+        referenceVolumeId,
+        preferredSegmentationId: importedSegmentationId,
+      })
+    ).toBe(importedSegmentationId);
   });
 
   it('falls back to the reference-volume segmentation when no imported mask is registered', () => {
     const segmentationService = {
-      getSegmentationsByReferenceVolumeId: jest.fn(() => [{
-        id: 'reference-volume-segmentation',
-        representationData: {
-          Labelmap: { referencedVolumeId: referenceVolumeId },
+      getSegmentationsByReferenceVolumeId: jest.fn(() => [
+        {
+          id: 'reference-volume-segmentation',
+          representationData: {
+            Labelmap: { referencedVolumeId: referenceVolumeId },
+          },
         },
-      }]),
+      ]),
     };
 
-    expect(resolveSegmentationIdForReference({
-      segmentationService,
-      referenceVolumeId,
-      preferredSegmentationId: importedSegmentationId,
-    })).toBe('reference-volume-segmentation');
+    expect(
+      resolveSegmentationIdForReference({
+        segmentationService,
+        referenceVolumeId,
+        preferredSegmentationId: importedSegmentationId,
+      })
+    ).toBe('reference-volume-segmentation');
   });
 
   it('uses getSegmentation for the preferred imported mask when available', () => {
@@ -582,11 +641,13 @@ describe('resolveSegmentationIdForReference', () => {
       getActiveSegmentation: jest.fn(() => ({ segmentationId: 'other-active-segmentation' })),
     };
 
-    expect(resolveSegmentationIdForReference({
-      segmentationService,
-      referenceVolumeId,
-      preferredSegmentationId: importedSegmentationId,
-    })).toBe(importedSegmentationId);
+    expect(
+      resolveSegmentationIdForReference({
+        segmentationService,
+        referenceVolumeId,
+        preferredSegmentationId: importedSegmentationId,
+      })
+    ).toBe(importedSegmentationId);
   });
 
   it('keeps a registered preferred mask even when service metadata omits volume references', () => {
@@ -597,27 +658,33 @@ describe('resolveSegmentationIdForReference', () => {
       getActiveSegmentation: jest.fn(() => ({ segmentationId: 'other-active-segmentation' })),
     };
 
-    expect(resolveSegmentationIdForReference({
-      segmentationService,
-      referenceVolumeId,
-      preferredSegmentationId: importedSegmentationId,
-    })).toBe(importedSegmentationId);
+    expect(
+      resolveSegmentationIdForReference({
+        segmentationService,
+        referenceVolumeId,
+        preferredSegmentationId: importedSegmentationId,
+      })
+    ).toBe(importedSegmentationId);
   });
 
   it('returns null when segmentationService is undefined', () => {
-    expect(resolveSegmentationIdForReference({
-      segmentationService: undefined,
-      referenceVolumeId,
-      preferredSegmentationId: null,
-    })).toBeNull();
+    expect(
+      resolveSegmentationIdForReference({
+        segmentationService: undefined,
+        referenceVolumeId,
+        preferredSegmentationId: null,
+      })
+    ).toBeNull();
   });
 
   it('returns null when segmentationService is null', () => {
-    expect(resolveSegmentationIdForReference({
-      segmentationService: null,
-      referenceVolumeId,
-      preferredSegmentationId: null,
-    })).toBeNull();
+    expect(
+      resolveSegmentationIdForReference({
+        segmentationService: null,
+        referenceVolumeId,
+        preferredSegmentationId: null,
+      })
+    ).toBeNull();
   });
 
   it('returns null when neither OHIF service nor Cornerstone-native state has any segmentation', () => {
@@ -626,81 +693,100 @@ describe('resolveSegmentationIdForReference', () => {
     const { __setMockState } = require('../__tests__/mocks/cornerstone-tools');
     __setMockState({ segmentations: [], viewportSegRepresentations: {} });
 
-    expect(resolveSegmentationIdForReference({
-      segmentationService,
-      referenceVolumeId,
-      preferredSegmentationId: null,
-    })).toBeNull();
+    expect(
+      resolveSegmentationIdForReference({
+        segmentationService,
+        referenceVolumeId,
+        preferredSegmentationId: null,
+      })
+    ).toBeNull();
   });
 
   it('finds manual segmentation via Cornerstone3D V2 native state (C0 path)', () => {
     const segmentationService = {};
     const { __setMockState } = require('../__tests__/mocks/cornerstone-tools');
     __setMockState({
-      segmentations: [{
-        segmentationId: 'segmentation:1',
-        label: 'Manual annotation',
-        representationData: {
-          LABELMAP: { volumeId: 'segmentation:1_volume' },
+      segmentations: [
+        {
+          segmentationId: 'segmentation:1',
+          label: 'Manual annotation',
+          representationData: {
+            LABELMAP: { volumeId: 'segmentation:1_volume' },
+          },
+          segments: {},
         },
-        segments: {},
-      }],
+      ],
       viewportSegRepresentations: {},
     });
 
-    expect(resolveSegmentationIdForReference({
-      segmentationService,
-      referenceVolumeId,
-      preferredSegmentationId: null,
-    })).toBe('segmentation:1');
+    expect(
+      resolveSegmentationIdForReference({
+        segmentationService,
+        referenceVolumeId,
+        preferredSegmentationId: null,
+      })
+    ).toBe('segmentation:1');
   });
 
   it('picks manual segmentation with matching reference volume over others', () => {
     const segmentationService = {};
     const { __setMockState } = require('../__tests__/mocks/cornerstone-tools');
     __setMockState({
-      segmentations: [{
-        segmentationId: 'manual-seg',
-        representationData: {
-          LABELMAP: {
-            volumeId: 'manual-volume',
-            referencedVolumeId: referenceVolumeId,
+      segmentations: [
+        {
+          segmentationId: 'manual-seg',
+          representationData: {
+            LABELMAP: {
+              volumeId: 'manual-volume',
+              referencedVolumeId: referenceVolumeId,
+            },
           },
+          segments: {},
         },
-        segments: {},
-      }],
+      ],
       viewportSegRepresentations: {},
     });
 
-    expect(resolveSegmentationIdForReference({
-      segmentationService,
-      referenceVolumeId,
-      preferredSegmentationId: null,
-    })).toBe('manual-seg');
+    expect(
+      resolveSegmentationIdForReference({
+        segmentationService,
+        referenceVolumeId,
+        preferredSegmentationId: null,
+      })
+    ).toBe('manual-seg');
   });
 
   it('falls back to active segmentation from viewport state (Strategy 4)', () => {
     const segmentationService = {};
-    const { __setMockState, segmentation: mockSegmentation } = require('../__tests__/mocks/cornerstone-tools');
+    const {
+      __setMockState,
+      segmentation: mockSegmentation,
+    } = require('../__tests__/mocks/cornerstone-tools');
     __setMockState({
       segmentations: [],
       viewportSegRepresentations: {
-        'viewport-1': [{
-          segmentationId: 'active-seg-from-vp',
-          type: 'Labelmap',
-          active: true,
-          visible: true,
-          segments: {},
-          config: {},
-        }],
+        'viewport-1': [
+          {
+            segmentationId: 'active-seg-from-vp',
+            type: 'Labelmap',
+            active: true,
+            visible: true,
+            segments: {},
+            config: {},
+          },
+        ],
       },
     });
     // Clear getSegmentations & fall through to getViewportIdsWithSegmentation approach
     mockSegmentation.state.getSegmentations.mockReturnValue([]);
-    mockSegmentation.state.getSegmentation.mockImplementation(
-      (id: string) => id === 'active-seg-from-vp'
-        ? { segmentationId: 'active-seg-from-vp', representationData: { LABELMAP: { volumeId: 'seg-volume' } }, segments: {} }
-        : undefined,
+    mockSegmentation.state.getSegmentation.mockImplementation((id: string) =>
+      id === 'active-seg-from-vp'
+        ? {
+            segmentationId: 'active-seg-from-vp',
+            representationData: { LABELMAP: { volumeId: 'seg-volume' } },
+            segments: {},
+          }
+        : undefined
     );
     mockSegmentation.activeSegmentation.getActiveSegmentation.mockReturnValue({
       segmentationId: 'active-seg-from-vp',
@@ -708,10 +794,12 @@ describe('resolveSegmentationIdForReference', () => {
       segments: {},
     });
 
-    expect(resolveSegmentationIdForReference({
-      segmentationService,
-      referenceVolumeId,
-      preferredSegmentationId: null,
-    })).toBe('active-seg-from-vp');
+    expect(
+      resolveSegmentationIdForReference({
+        segmentationService,
+        referenceVolumeId,
+        preferredSegmentationId: null,
+      })
+    ).toBe('active-seg-from-vp');
   });
 });
