@@ -51,7 +51,8 @@ python -m pytest -q servers/uncertainty-service/tests evaluation/ct-spleen/tests
 The install command is intentionally repeated here so an existing checkout
 that was updated with `git pull` receives newly added test dependencies.
 
-**Pass:** all tests pass. The current maintained baseline is 113 tests; a higher count is acceptable.
+**Pass:** all tests pass. The maintained Python baseline is 134 tests; a
+higher count is acceptable.
 
 If dependency installation mentions `cp314` or `Python314`, the existing
 virtual environment was created with Python 3.14. Return to INSTALL.md section
@@ -69,7 +70,22 @@ yarn workspace @thesis/extension-uncertainty typecheck
 yarn workspace @thesis/mode-uncertainty-review typecheck
 ```
 
-**Pass:** both Jest suites and both type checks exit with code 0. The maintained baselines are 119 extension tests and 87 mode tests; higher counts are acceptable. Save terminal output in the evidence directory.
+**Pass:** both Jest suites and both type checks exit with code 0. The maintained
+baselines are 119 extension tests and 91 mode tests; higher counts are
+acceptable. Save terminal output in the evidence directory.
+
+Use this suite-by-suite inventory rather than combining historical counts from
+the thesis PDF with current output:
+
+| Suite | Maintained baseline |
+|---|---:|
+| Python service and evaluation | 134 |
+| OHIF uncertainty extension | 119 |
+| OHIF uncertainty-review mode | 91 |
+| **Current total** | **344** |
+
+The total is a repository regression-test count, not a count of participants,
+cases, independent experiments, or thesis claims.
 
 ## A2. Infrastructure and restored data
 
@@ -257,6 +273,14 @@ Get-FileHash $RetrievedMask -Algorithm SHA256 -ErrorAction Stop
 ```
 
 **Pass:** accepted/edited submissions have a NIfTI filename and non-zero `mask_size_bytes`; rejection has no required mask; status and timestamps persist independently per condition; GET returns the latest submission for the requested condition; `storage_url` downloads a valid, non-empty NIfTI mask. An edited C1/C2 mask reports measured AI/reviewer foreground and edit-voxel values rather than placeholder zeros.
+
+`accepted` names the terminal action selected by the reviewer; it does not mean
+that the AI mask was necessarily unchanged. Interpret it with
+`edit_voxel_count` and the preceding edit telemetry: `accepted` with zero edits
+is accepted unchanged, while `accepted` with non-zero edits is edited and then
+accepted. The distinct `edited` status is produced by the explicit **Submit
+edited annotation** action. Report these operational definitions rather than
+silently relabelling stored records.
 
 ## A9. Event and timing telemetry
 

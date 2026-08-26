@@ -23,12 +23,12 @@ const getImageMimeType = fileType => {
 };
 
 const copyViewPresentation = (sourceViewport, targetViewport) => {
-  const viewReference = sourceViewport.getViewReference?.();
   const presentation = sourceViewport.getViewPresentation?.();
 
-  if (viewReference && typeof targetViewport.setViewReference === 'function') {
-    targetViewport.setViewReference(viewReference);
-  }
+  // A volume camera can lie between source slices. getViewReference() then
+  // attempts to resolve an exact imageId and emits "No imageId" even though
+  // the viewport is valid. View presentation contains the camera/properties
+  // required for capture and does not depend on an exact source slice.
   if (presentation && typeof targetViewport.setViewPresentation === 'function') {
     targetViewport.setViewPresentation(presentation);
   }

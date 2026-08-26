@@ -5,6 +5,7 @@ import modeManifest, {
   installReviewerTelemetry,
   modeFactory,
   resolveSegmentationIdForReference,
+  uniqueImageIdsBySopInstance,
 } from '../index';
 import * as cornerstone from '@cornerstonejs/core';
 import * as cornerstoneTools from '@cornerstonejs/tools';
@@ -26,6 +27,19 @@ describe('reference volume image selection', () => {
         images: [{ imageId: 'dicomweb:one' }, { imageId: 'dicomweb:two' }],
       })
     ).toEqual(['dicomweb:one', 'dicomweb:two']);
+  });
+
+  it('deduplicates alternate image URLs that identify the same SOP instance', () => {
+    expect(
+      uniqueImageIdsBySopInstance([
+        'wadors:http://orthanc/dicom-web/studies/a/series/b/instances/1.2.3/frames/1',
+        'dicomweb:http://orthanc/dicom-web/studies/a/series/b/instances/1.2.3/frames/1',
+        'wadors:http://orthanc/dicom-web/studies/a/series/b/instances/1.2.4/frames/1',
+      ])
+    ).toEqual([
+      'wadors:http://orthanc/dicom-web/studies/a/series/b/instances/1.2.3/frames/1',
+      'wadors:http://orthanc/dicom-web/studies/a/series/b/instances/1.2.4/frames/1',
+    ]);
   });
 });
 

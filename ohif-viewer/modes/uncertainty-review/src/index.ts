@@ -241,11 +241,33 @@ export function imageIdsFromDisplaySet(displaySet: AnyServices): string[] {
   // makes an otherwise grid-aligned NIfTI mask impossible to import.
   for (const source of sources) {
     const values = Array.isArray(source) ? source : typeof source === 'string' ? [source] : [];
-    const imageIds = uniqueStrings(values.map(value => maybeString(value)));
+    const imageIds = uniqueImageIdsBySopInstance(
+      values.map(value => maybeString(value)).filter((value): value is string => Boolean(value))
+    );
     if (imageIds.length) return imageIds;
   }
 
   return [];
+}
+
+export function uniqueImageIdsBySopInstance(imageIds: string[]): string[] {
+  const seen = new Set<string>();
+  const unique: string[] = [];
+
+  for (const imageId of imageIds) {
+    const instance = (cornerstone as AnyServices).metaData?.get?.('instance', imageId);
+    const metadataUid = maybeString(
+      instance?.SOPInstanceUID ?? instance?.sopInstanceUID ?? instance?.['00080018']
+    );
+    const urlUid = imageId.match(/\/instances\/([^/?#]+)/i)?.[1];
+    const identity = metadataUid ?? (urlUid ? decodeURIComponent(urlUid) : imageId);
+
+    if (seen.has(identity)) continue;
+    seen.add(identity);
+    unique.push(imageId);
+  }
+
+  return unique;
 }
 
 async function ensureReferenceVolumeCached(
