@@ -41,7 +41,7 @@ Open a **new, ordinary PowerShell window**, then install Yarn Classic and verify
 npm install --global yarn@1.22.22
 
 git --version
-python --version
+py -3.12 --version
 node --version
 yarn --version
 docker --version
@@ -60,8 +60,9 @@ Set-Location C:\uncertainty-annotation-apparatus
 
 Copy-Item .env.example .env -Force
 
-python -m venv .venv
+py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1
+python -c "import sys; assert sys.version_info[:2] == (3, 12), sys.version"
 python -m pip install --upgrade pip
 python -m pip install -r evaluation/ct-spleen/requirements.txt
 python -m pip install -r servers/uncertainty-service/requirements-test.txt
@@ -72,6 +73,10 @@ If activation is blocked, run the following, reopen PowerShell, and activate aga
 ```powershell
 Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 ```
+
+If `.venv` was previously created with another Python version, remove only that
+virtual-environment directory and recreate it with the commands above. In
+particular, Python 3.14 cannot build the apparatus's pinned `asyncpg==0.30.0`.
 
 The example environment already contains all evaluation settings and the shared PostgreSQL password. No `.env` editing is required.
 
@@ -216,6 +221,16 @@ Copy-Item .env.example .env -Force
 Set-Location ..\..
 yarn dev
 ```
+
+### Development console reports a WebSocket Back-Forward Cache message
+
+When navigating Back/Forward, Chromium can suspend the webpack development
+server's hot-reload WebSocket while the page is in its Back-Forward Cache. A
+single `Page entered Back-Forward Cache` message is not an apparatus or
+collaboration-service failure. The restored page must reconnect automatically;
+confirm that the viewer remains interactive and that subsequent source edits
+still reload. If it does not reconnect, refresh the page once. This message is
+specific to `yarn dev` and is absent from the production build.
 
 ### PostgreSQL authentication fails after updating an older checkout
 

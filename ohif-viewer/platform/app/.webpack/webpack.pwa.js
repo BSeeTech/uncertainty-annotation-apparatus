@@ -44,7 +44,7 @@ const setHeaders = (res, path) => {
 // in webpack-dev-server watch mode (avoids the "InjectManifest has been called
 // multiple times" warning)
 let injectManifestInstance = null;
-const getInjectManifest = (opts) => {
+const getInjectManifest = opts => {
   if (!injectManifestInstance) {
     const { InjectManifest } = require('workbox-webpack-plugin');
     injectManifestInstance = new InjectManifest(opts);
@@ -163,7 +163,10 @@ module.exports = (env, argv) => {
       },
       proxy: {
         '/dicomweb': 'http://localhost:5000',
-        '/uncertainty': 'http://localhost:8043',
+        // Keep the API proxy distinct from the /uncertainty-review SPA route.
+        // Without the trailing slash, webpack-dev-server also proxies direct
+        // loads of that UI route to the API, which correctly answers 404.
+        '/uncertainty/': 'http://localhost:8043',
       },
       static: [
         {

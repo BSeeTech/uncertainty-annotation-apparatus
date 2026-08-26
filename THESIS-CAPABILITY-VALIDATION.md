@@ -40,7 +40,10 @@ For every test, record `PASS`, `FAIL`, or `NOT IMPLEMENTED`, the tester, date, c
 ### Uncertainty service
 
 ```powershell
-Set-Location C:\uncertainty-annotation-apparatus\servers\uncertainty-service
+Set-Location C:\uncertainty-annotation-apparatus
+.\.venv\Scripts\Activate.ps1
+python -c "import sys; assert sys.version_info[:2] == (3, 12), 'Recreate .venv with: py -3.12 -m venv .venv'"
+Set-Location servers\uncertainty-service
 python -m pip install -r requirements-test.txt
 python -m pytest -q
 ```
@@ -49,6 +52,10 @@ The install command is intentionally repeated here so an existing checkout
 that was updated with `git pull` receives newly added test dependencies.
 
 **Pass:** all tests pass. The current maintained baseline is 113 tests; a higher count is acceptable.
+
+If dependency installation mentions `cp314` or `Python314`, the existing
+virtual environment was created with Python 3.14. Return to INSTALL.md section
+2 and recreate `.venv` with the explicitly selected Python 3.12 interpreter.
 
 ### OHIF uncertainty extension and review mode
 
@@ -177,9 +184,11 @@ Open C2, select a completed case, and wait for both the AI mask and heatmap to l
 2. Move the continuous opacity control, or select its 0%, 50%, and 100% presets; the overlay must disappear, blend, and become strongest respectively.
 3. Scroll slices, pan, zoom, and change window/level; the overlay must stay spatially aligned.
 4. Confirm the panel shows mean foreground entropy, 95th percentile, fraction above threshold, checkpoint version, and `T=16`.
-5. Capture screenshots at 0%, 50%, and 100% opacity.
+5. Select **Capture**, confirm the preview contains the same CT slice and visible overlays as the active viewport, then download both JPG and PNG images.
+6. Repeat Capture in C1 and confirm the CT plus AI segmentation is present but no uncertainty heatmap is exposed.
+7. Capture C2 screenshots at 0%, 50%, and 100% opacity.
 
-**Pass:** the sequential magma heatmap is visible only in C2, controls respond, alignment is retained, and the score/provenance readout is populated. An endless loader, stale overlay from a previous case, or CT/overlay misregistration fails the test.
+**Pass:** the sequential magma heatmap is visible only in C2, controls respond, alignment is retained, the score/provenance readout is populated, and every downloaded image matches its source viewport. An endless loader, blank preview/download, missing CT or condition-appropriate overlay, stale overlay from a previous case, or CT/overlay misregistration fails the test. Refreshing the full `/uncertainty-review?...` URL must load OHIF rather than return API status 404.
 
 ## A7. Worklist ordering and case assignment
 
