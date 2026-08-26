@@ -137,10 +137,13 @@ class SegmentationService extends PubSubService {
 
     const toolGroupId = config.toolGroupId ?? this._getApplicableToolGroupId();
 
-    const { segmentationRepresentationUID, segmentation } = this._getSegmentationInfo(
-      segmentationId,
-      toolGroupId
-    );
+    const { segmentation } = this._getSegmentationInfo(segmentationId, toolGroupId);
+    const { toolGroupService } = this.servicesManager.services;
+    const viewportId = toolGroupService.getToolGroup(toolGroupId)?.getViewportIds?.()[0];
+
+    if (!viewportId) {
+      throw new Error(`No viewport found for segmentation tool group ${toolGroupId}`);
+    }
 
     let segmentIndex = config.segmentIndex;
     if (!segmentIndex) {
@@ -153,8 +156,8 @@ class SegmentationService extends PubSubService {
     }
 
     const rgbaColor = cstSegmentation.config.color.getSegmentIndexColor(
-      toolGroupId,
-      segmentationRepresentationUID,
+      viewportId,
+      segmentationId,
       segmentIndex
     );
 
@@ -474,19 +477,24 @@ class SegmentationService extends PubSubService {
       return segmentationId;
     }
 
-	const representationType = segmentation.type
-      ?? (segmentation.representationData?.Labelmap
+    const representationType =
+      segmentation.type ??
+      (segmentation.representationData?.Labelmap
         ? LABELMAP
         : segmentation.representationData?.Contour
           ? CONTOUR
           : Object.keys(segmentation.representationData ?? {})[0]);
-    
+
     // Safety check for representationData
-    if (!representationType || !segmentation.representationData || !segmentation.representationData[representationType]) {
+    if (
+      !representationType ||
+      !segmentation.representationData ||
+      !segmentation.representationData[representationType]
+    ) {
       console.warn('SegmentationService: Missing representationData for type:', representationType);
       return segmentationId;
     }
-    
+
     const representationData = segmentation.representationData[representationType];
     cstSegmentation.addSegmentations([
       {
@@ -1084,23 +1092,16 @@ class SegmentationService extends PubSubService {
     const viewportIds = toolGroup ? toolGroup.getViewportIds() : [];
 
     for (const viewportId of viewportIds) {
-      await cstSegmentation.addSegmentationRepresentations(
-        viewportId,
-        [
-          {
-            segmentationId,
-            type: representationType,
-          },
-        ]
-      );
+      await cstSegmentation.addSegmentationRepresentations(viewportId, [
+        {
+          segmentationId,
+          type: representationType,
+        },
+      ]);
     }
 
     // set the latest segmentation representation as active one
-    this._setActiveSegmentationForToolGroup(
-      segmentationId,
-      toolGroupId,
-      suppressEvents
-    );
+    this._setActiveSegmentationForToolGroup(segmentationId, toolGroupId, suppressEvents);
 
     // add the segmentation segments properly
     for (const segment of segmentation.segments) {
@@ -1175,8 +1176,13 @@ class SegmentationService extends PubSubService {
   };
 
   public getToolGroupIdsWithSegmentation = (segmentationId: string): string[] => {
-    const toolGroupIds = cstSegmentation.state.getViewportIdsWithSegmentation(segmentationId);
-    return toolGroupIds;
+    const { toolGroupService } = this.servicesManager.services;
+    const viewportIds = cstSegmentation.state.getViewportIdsWithSegmentation(segmentationId);
+    const toolGroupIds = viewportIds
+      .map(viewportId => toolGroupService.getToolGroupForViewport(viewportId)?.id)
+      .filter(Boolean);
+
+    return Array.from(new Set(toolGroupIds));
   };
 
   public hydrateSegmentation = (segmentationId: string, suppressEvents = false): void => {
@@ -1255,8 +1261,7 @@ class SegmentationService extends PubSubService {
 
       cstSegmentation.config.style.setStyle(
         {
-          segmentationId:
-            segmentationRepresentation.segmentationRepresentationUID,
+          segmentationId: segmentationRepresentation.segmentationRepresentationUID,
         },
         {
           [segmentIndex]: {
@@ -1271,10 +1276,10 @@ class SegmentationService extends PubSubService {
         requestAnimationFrame(animation);
       } else {
         cstSegmentation.config.style.setStyle(
-        {
-          segmentationId: segmentationRepresentation.segmentationRepresentationUID,
-        },
-        {}
+          {
+            segmentationId: segmentationRepresentation.segmentationRepresentationUID,
+          },
+          {}
         );
       }
     };
@@ -1297,10 +1302,10 @@ class SegmentationService extends PubSubService {
       const progress = (currentTime - startTime) / animationLength;
       if (progress >= 1) {
         cstSegmentation.config.style.setStyle(
-        {
-          segmentationId: segmentationRepresentation.segmentationRepresentationUID,
-        },
-        {}
+          {
+            segmentationId: segmentationRepresentation.segmentationRepresentationUID,
+          },
+          {}
         );
         return;
       }
@@ -1308,8 +1313,7 @@ class SegmentationService extends PubSubService {
       const reversedProgress = reverseEaseInOutBell(progress, 0.1);
       cstSegmentation.config.style.setStyle(
         {
-          segmentationId:
-            segmentationRepresentation.segmentationRepresentationUID,
+          segmentationId: segmentationRepresentation.segmentationRepresentationUID,
         },
         {
           [segmentIndex]: {
@@ -1508,7 +1512,16 @@ class SegmentationService extends PubSubService {
   };
 
   public getSegmentationRepresentationsForToolGroup = toolGroupId => {
-    return cstSegmentation.state.getSegmentationRepresentations(toolGroupId);
+    const { toolGroupService } = this.servicesManager.services;
+    const toolGroup = toolGroupService.getToolGroup(toolGroupId);
+    const viewportIds = toolGroup?.getViewportIds?.() ?? [];
+
+    // Cornerstone3D v3 stores representations per viewport.  OHIF's public
+    // service API remains tool-group based, so translate here instead of
+    // accidentally asking Cornerstone for a viewport named after the group.
+    return viewportIds.flatMap(
+      viewportId => cstSegmentation.state.getSegmentationRepresentations(viewportId) ?? []
+    );
   };
 
   public setSegmentLabel(segmentationId: string, segmentIndex: number, label: string) {
@@ -1608,10 +1621,7 @@ class SegmentationService extends PubSubService {
     const viewportIds = toolGroup ? toolGroup.getViewportIds() : [];
 
     for (const viewportId of viewportIds) {
-      cstSegmentation.activeSegmentation.setActiveSegmentation(
-        viewportId,
-        segmentationId
-      );
+      cstSegmentation.activeSegmentation.setActiveSegmentation(viewportId, segmentationId);
     }
 
     if (suppressEvents === false) {
@@ -1933,8 +1943,7 @@ class SegmentationService extends PubSubService {
     const { cornerstoneViewportService } = this.servicesManager.services;
 
     // Cornerstone V2 config is flat; map OHIF property names to V2 names
-    const v2Property =
-      property === 'outlineWidthActive' ? 'outlineWidth' : property;
+    const v2Property = property === 'outlineWidthActive' ? 'outlineWidth' : property;
     const config = cstSegmentation.config.style.getStyle({ type: typeToUse });
 
     config[v2Property] = value;
@@ -1997,8 +2006,9 @@ class SegmentationService extends PubSubService {
     // Cornerstone3D v2 segmentation state stores the type only inside
     // representationData keys (not as a top-level property).  Derive it
     // when the top-level field is absent.
-    const type = segmentationState.type
-      ?? (segmentationState.representationData?.Labelmap
+    const type =
+      segmentationState.type ??
+      (segmentationState.representationData?.Labelmap
         ? LABELMAP
         : segmentationState.representationData?.Contour
           ? CONTOUR

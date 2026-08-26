@@ -162,16 +162,24 @@ Use synthetic reviewer identifiers `R01` through `R12`. C0 is review without AI,
 ```powershell
 Set-Location C:\uncertainty-annotation-apparatus
 .\.venv\Scripts\Activate.ps1
+$ErrorActionPreference = 'Stop'
+
+python -m pip install -r evaluation/ct-spleen/requirements.txt
+if ($LASTEXITCODE -ne 0) { throw "Evaluation dependency installation failed ($LASTEXITCODE)" }
+python -c "import nibabel, numpy, scipy; print('Evaluation dependencies: OK')"
+if ($LASTEXITCODE -ne 0) { throw "Evaluation dependency check failed ($LASTEXITCODE)" }
 
 python evaluation/ct-spleen/run_evaluation.py `
   --cases evaluation/ct-spleen/cases.json `
   --references evaluation/ct-spleen/data `
   --service http://localhost:8043/uncertainty `
   --output evaluation/ct-spleen/results/experimental-results.json
+if ($LASTEXITCODE -ne 0) { throw "CT-spleen evaluation failed ($LASTEXITCODE)" }
 
 python evaluation/ct-spleen/render_report.py `
   --input evaluation/ct-spleen/results/experimental-results.json `
   --output evaluation/ct-spleen/results/experimental-report.md
+if ($LASTEXITCODE -ne 0) { throw "Evaluation report generation failed ($LASTEXITCODE)" }
 ```
 
 Review `evaluation/ct-spleen/results/experimental-results.json` and `evaluation/ct-spleen/results/experimental-report.md`. Expected Dice scores for the three labeled cases are approximately 0.89, 0.88, and 0.91; small Monte Carlo differences can occur.
@@ -222,15 +230,22 @@ Set-Location ..\..
 yarn dev
 ```
 
-### Development console reports a WebSocket Back-Forward Cache message
+### Enable hot reload for frontend development
 
-When navigating Back/Forward, Chromium can suspend the webpack development
-server's hot-reload WebSocket while the page is in its Back-Forward Cache. A
-single `Page entered Back-Forward Cache` message is not an apparatus or
-collaboration-service failure. The restored page must reconnect automatically;
-confirm that the viewer remains interactive and that subsequent source edits
-still reload. If it does not reconnect, refresh the page once. This message is
-specific to `yarn dev` and is absent from the production build.
+The evaluation configuration disables webpack hot reload and its development
+WebSocket. This prevents Chromium Back-Forward Cache transitions from causing
+repeated `ws://localhost:3000/ws` disconnect/reconnect failures. Source changes
+therefore require restarting `yarn dev` during an evaluation run.
+
+Frontend developers who need hot reload can opt in for that PowerShell session:
+
+```powershell
+$env:OHIF_ENABLE_HMR = 'true'
+yarn dev
+```
+
+This socket is webpack tooling only. It is separate from the apparatus's
+collaboration service on port 3001.
 
 ### PostgreSQL authentication fails after updating an older checkout
 

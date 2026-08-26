@@ -20,6 +20,7 @@ const APP_CONFIG = process.env.APP_CONFIG || 'config/default.js';
 const PROXY_TARGET = process.env.PROXY_TARGET;
 const PROXY_DOMAIN = process.env.PROXY_DOMAIN;
 const ENTRY_TARGET = process.env.ENTRY_TARGET || `${SRC_DIR}/index.js`;
+const ENABLE_HMR = process.env.OHIF_ENABLE_HMR === 'true';
 const Dotenv = require('dotenv-webpack');
 const writePluginImportFile = require('./writePluginImportsFile.js');
 
@@ -158,9 +159,20 @@ module.exports = (env, argv) => {
       // https: true,
       open: true,
       port: 3000,
-      client: {
-        overlay: { errors: true, warnings: false },
-      },
+      // The evaluation viewer favours stable route transitions over hot
+      // module replacement. Chromium closes WDS's development WebSocket when
+      // a medical-viewer page enters the Back-Forward Cache; older WDS clients
+      // then reconnect repeatedly and emit misleading connection failures.
+      // Keep the development socket out of evaluation runs. Developers can
+      // opt in explicitly with OHIF_ENABLE_HMR=true.
+      client: ENABLE_HMR
+        ? {
+            overlay: { errors: true, warnings: false },
+          }
+        : false,
+      hot: ENABLE_HMR,
+      liveReload: ENABLE_HMR,
+      webSocketServer: ENABLE_HMR ? 'ws' : false,
       proxy: {
         '/dicomweb': 'http://localhost:5000',
         // Keep the API proxy distinct from the /uncertainty-review SPA route.

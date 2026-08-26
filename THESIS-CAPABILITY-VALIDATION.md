@@ -43,9 +43,9 @@ For every test, record `PASS`, `FAIL`, or `NOT IMPLEMENTED`, the tester, date, c
 Set-Location C:\uncertainty-annotation-apparatus
 .\.venv\Scripts\Activate.ps1
 python -c "import sys; assert sys.version_info[:2] == (3, 12), 'Recreate .venv with: py -3.12 -m venv .venv'"
-Set-Location servers\uncertainty-service
-python -m pip install -r requirements-test.txt
-python -m pytest -q
+python -m pip install -r servers/uncertainty-service/requirements-test.txt
+python -m pip install -r evaluation/ct-spleen/requirements.txt
+python -m pytest -q servers/uncertainty-service/tests evaluation/ct-spleen/tests
 ```
 
 The install command is intentionally repeated here so an existing checkout
@@ -357,16 +357,32 @@ These are simulated fixtures for pipeline validation. They are not participant o
 ```powershell
 Set-Location C:\uncertainty-annotation-apparatus
 .\.venv\Scripts\Activate.ps1
+$ErrorActionPreference = 'Stop'
+
+# Required even in a newly recreated virtual environment. This installs the
+# evaluator's declared NumPy, SciPy, nibabel, pydicom, and requests versions.
+python -m pip install -r evaluation/ct-spleen/requirements.txt
+if ($LASTEXITCODE -ne 0) { throw "Evaluation dependency installation failed ($LASTEXITCODE)" }
+
+python -c "import nibabel, numpy, scipy; print('Evaluation dependencies: OK')"
+if ($LASTEXITCODE -ne 0) { throw "Evaluation dependency check failed ($LASTEXITCODE)" }
 
 python evaluation/ct-spleen/run_evaluation.py `
   --cases evaluation/ct-spleen/cases.json `
   --references evaluation/ct-spleen/data `
   --service http://localhost:8043/uncertainty `
   --output evaluation/ct-spleen/results/experimental-results.json
+if ($LASTEXITCODE -ne 0) { throw "CT-spleen evaluation failed ($LASTEXITCODE)" }
 
 python evaluation/ct-spleen/render_report.py `
   --input evaluation/ct-spleen/results/experimental-results.json `
   --output evaluation/ct-spleen/results/experimental-report.md
+if ($LASTEXITCODE -ne 0) { throw "Evaluation report generation failed ($LASTEXITCODE)" }
+
+if (-not $Evidence) {
+  $Evidence = Join-Path (Get-Location) ("validation-evidence\" + (Get-Date -Format 'yyyyMMdd-HHmmss'))
+  New-Item -ItemType Directory -Force -Path $Evidence | Out-Null
+}
 
 Copy-Item evaluation/ct-spleen/results/experimental-results.json $Evidence
 Copy-Item evaluation/ct-spleen/results/experimental-report.md $Evidence
@@ -391,13 +407,61 @@ powershell -ExecutionPolicy Bypass -File .\scripts\setup-demo-data.ps1
 ### Readiness failure
 
 ```powershell
-docker compose stop monai-label
-Invoke-WebRequest http://localhost:8043/uncertainty/health/ready -UseBasicParsing
-docker compose start monai-label
-docker compose restart uncertainty-service
+Set-Location C:\uncertainty-annotation-apparatus
+$ErrorActionPreference = 'Stop'
+
+try {
+  docker compose stop monai-label
+  if ($LASTEXITCODE -ne 0) { throw "Could not stop MONAI Label ($LASTEXITCODE)" }
+
+  # HTTP 503 is the expected readiness response while MONAI Label is down.
+  # -SkipHttpErrorCheck prevents that expected response from aborting the test.
+  $downResponse = Invoke-WebRequest `
+    http://localhost:8043/uncertainty/health/ready `
+    -UseBasicParsing `
+    -SkipHttpErrorCheck
+  $downBody = $downResponse.Content | ConvertFrom-Json
+  if ($downResponse.StatusCode -lt 400 -or $downBody.ready -ne $false) {
+    throw "Readiness did not report dependency loss while MONAI Label was stopped"
+  }
+  Write-Host "Expected degraded readiness confirmed (HTTP $($downResponse.StatusCode))."
+}
+finally {
+  # Always restore the dependency, including when an assertion above fails.
+  docker compose start monai-label
+  if ($LASTEXITCODE -ne 0) { throw "Could not restart MONAI Label ($LASTEXITCODE)" }
+  docker compose restart uncertainty-service
+  if ($LASTEXITCODE -ne 0) { throw "Could not restart uncertainty service ($LASTEXITCODE)" }
+}
+
+$ready = $false
+for ($attempt = 1; $attempt -le 60; $attempt++) {
+  try {
+    $health = Invoke-RestMethod `
+      http://localhost:8043/uncertainty/health/ready `
+      -TimeoutSec 5
+    if ($health.ready -eq $true) {
+      $ready = $true
+      break
+    }
+  }
+  catch {
+    # Startup can temporarily return connection errors or HTTP 503.
+  }
+  Start-Sleep -Seconds 5
+}
+
+if (-not $ready) {
+  docker compose ps
+  docker compose logs --tail 100 monai-label uncertainty-service
+  throw "Services did not recover within five minutes"
+}
+Write-Host "Readiness recovery confirmed."
 ```
 
-The request while MONAI is stopped should fail or report not ready. After MONAI becomes healthy and the uncertainty service restarts, `/health/ready` must return success.
+The test must confirm HTTP 503 with `ready: false` while MONAI is stopped and
+must then print `Readiness recovery confirmed.`. The `finally` block restores
+the services even if the degraded-state assertion fails.
 
 ### Missing cached generation
 

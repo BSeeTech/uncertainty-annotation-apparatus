@@ -17,6 +17,11 @@ const DEFAULT_SIZE = 512;
 const MAX_TEXTURE_SIZE = 10000;
 const VIEWPORT_ID = 'cornerstone-viewport-download-form';
 
+const getImageMimeType = fileType => {
+  const normalizedFileType = Array.isArray(fileType) ? fileType[0] : fileType;
+  return `image/${normalizedFileType === 'jpg' ? 'jpeg' : normalizedFileType}`;
+};
+
 const copyViewPresentation = (sourceViewport, targetViewport) => {
   const viewReference = sourceViewport.getViewReference?.();
   const presentation = sourceViewport.getViewPresentation?.();
@@ -85,10 +90,9 @@ const CornerstoneViewportDownloadForm = ({
   const disableViewport = viewportElement => {
     if (viewportElement) {
       const { renderingEngine } = getEnabledElement(viewportElement);
-      return new Promise(resolve => {
-        renderingEngine.disableElement(VIEWPORT_ID);
-      });
+      renderingEngine.disableElement(VIEWPORT_ID);
     }
+    return Promise.resolve();
   };
 
   const updateViewportPreview = (downloadViewportElement, internalCanvas, fileType) =>
@@ -112,8 +116,7 @@ const CornerstoneViewportDownloadForm = ({
 
           const downloadCanvas = getOrCreateCanvas(element);
 
-          const type = 'image/' + fileType;
-          const dataUrl = downloadCanvas.toDataURL(type, 1);
+          const dataUrl = downloadCanvas.toDataURL(getImageMimeType(fileType), 1);
 
           let newWidth = element.offsetHeight;
           let newHeight = element.offsetWidth;
@@ -169,11 +172,14 @@ const CornerstoneViewportDownloadForm = ({
           });
         } else if (downloadViewport instanceof BaseVolumeViewport) {
           const actors = viewport.getActors();
-          // Copy every visible actor, not just the CT volume. In uncertainty
-          // review this includes the AI segmentation and entropy heatmap.
-          actors.forEach(actor => {
-            downloadViewport.addActor(actor);
-          });
+
+          // Replace the complete actor set atomically. setActors resets the
+          // target camera to the actor bounds before the source presentation
+          // is restored. Adding actors individually leaves a newly enabled
+          // volume viewport with an uninitialised camera and renders black in
+          // every condition. The actor list naturally contains CT only in C0,
+          // CT + AI segmentation in C1, and CT + segmentation + heatmap in C2.
+          downloadViewport.setActors(actors);
 
           copyViewPresentation(viewport, downloadViewport);
           downloadViewport.render();
@@ -218,12 +224,9 @@ const CornerstoneViewportDownloadForm = ({
     });
   };
 
-  const downloadBlob = (filename, fileType) => {
+  const downloadBlob = (filename, fileType, viewportElement) => {
     const file = `${filename}.${fileType}`;
-    const divForDownloadViewport = document.querySelector(
-      `div[data-viewport-uid="${VIEWPORT_ID}"]`
-    );
-    if (!divForDownloadViewport) {
+    if (!viewportElement || !getEnabledElement(viewportElement)) {
       throw new Error('Download viewport is not available. Reopen Capture and try again.');
     }
 
@@ -231,9 +234,8 @@ const CornerstoneViewportDownloadForm = ({
     // reliably copy GPU/WebGL-backed medical-image pixels and produced blank
     // files even when the preview was correct. Segmentation and uncertainty
     // are volume actors in this canvas, so they remain in the exported image.
-    const canvas = getOrCreateCanvas(divForDownloadViewport as HTMLDivElement);
-    const mimeType = `image/${fileType === 'jpg' ? 'jpeg' : fileType}`;
-    const dataUrl = canvas.toDataURL(mimeType, 1.0);
+    const canvas = getOrCreateCanvas(viewportElement as HTMLDivElement);
+    const dataUrl = canvas.toDataURL(getImageMimeType(fileType), 1.0);
     const link = document.createElement('a');
     link.download = file;
     link.href = dataUrl;

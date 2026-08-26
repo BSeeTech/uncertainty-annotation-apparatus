@@ -124,7 +124,7 @@ export default function PanelSegmentation({
   };
 
   const onSegmentationAdd = async () => {
-    commandsManager.runCommand('createEmptySegmentationForViewport', {
+    await commandsManager.runCommand('createEmptySegmentationForViewport', {
       viewportId: viewportGridService.getActiveViewportId(),
     });
   };
@@ -137,8 +137,30 @@ export default function PanelSegmentation({
     segmentationService.remove(segmentationId);
   };
 
-  const onSegmentAdd = segmentationId => {
+  const onSegmentAdd = async segmentationId => {
+    const activeViewportId = viewportGridService.getActiveViewportId();
+    const viewportInfo = cornerstoneViewportService.getViewportInfo(activeViewportId);
+    const toolGroupId = viewportInfo?.getToolGroupId?.();
+
+    if (!toolGroupId) {
+      throw new Error(`No tool group found for active viewport ${activeViewportId}`);
+    }
+
+    const representedToolGroups =
+      segmentationService.getToolGroupIdsWithSegmentation(segmentationId);
+
+    // Imported or newly created segmentation metadata can exist before its
+    // writable labelmap representation is attached to this viewport.  Brush,
+    // eraser and threshold tools all require that representation to be active.
+    if (!representedToolGroups.includes(toolGroupId)) {
+      await segmentationService.addSegmentationRepresentationToToolGroup(
+        toolGroupId,
+        segmentationId
+      );
+    }
+
     segmentationService.addSegment(segmentationId);
+    segmentationService.setActiveSegmentationForToolGroup(segmentationId, toolGroupId);
   };
 
   const onSegmentClick = (segmentationId, segmentIndex) => {
