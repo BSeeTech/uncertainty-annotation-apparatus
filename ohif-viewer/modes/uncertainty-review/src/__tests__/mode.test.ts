@@ -1,5 +1,6 @@
 import modeManifest, {
   getCommandsModule,
+  ensureReferenceVolumeCached,
   id,
   imageIdsFromDisplaySet,
   installReviewerTelemetry,
@@ -11,6 +12,14 @@ import * as cornerstone from '@cornerstonejs/core';
 import * as cornerstoneTools from '@cornerstonejs/tools';
 
 describe('reference volume image selection', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  afterEach(() => {
+    (cornerstone as any).cache.getVolume.mockReturnValue(null);
+  });
+
   it('uses one canonical image-id source instead of duplicating slices across aliases', () => {
     expect(
       imageIdsFromDisplaySet({
@@ -40,6 +49,38 @@ describe('reference volume image selection', () => {
       'wadors:http://orthanc/dicom-web/studies/a/series/b/instances/1.2.3/frames/1',
       'wadors:http://orthanc/dicom-web/studies/a/series/b/instances/1.2.4/frames/1',
     ]);
+  });
+
+  it('rebuilds a cached reference volume whose slice count is stale', async () => {
+    const core = cornerstone as any;
+    const load = jest.fn().mockResolvedValue(undefined);
+    core.cache.getVolume.mockReturnValue({ dimensions: [512, 512, 114] });
+    core.volumeLoader.createAndCacheVolume.mockResolvedValue({ load });
+
+    await ensureReferenceVolumeCached('cornerstoneStreamingImageVolume:display-set', {
+      imageIds: ['wadors:one', 'wadors:two'],
+    });
+
+    expect(core.cache.removeVolumeLoadObject).toHaveBeenCalledWith(
+      'cornerstoneStreamingImageVolume:display-set'
+    );
+    expect(core.volumeLoader.createAndCacheVolume).toHaveBeenCalledWith(
+      'cornerstoneStreamingImageVolume:display-set',
+      { imageIds: ['wadors:one', 'wadors:two'] }
+    );
+    expect(load).toHaveBeenCalled();
+  });
+
+  it('reuses a cached reference volume with the expected slice count', async () => {
+    const core = cornerstone as any;
+    core.cache.getVolume.mockReturnValue({ dimensions: [512, 512, 2] });
+
+    await ensureReferenceVolumeCached('cornerstoneStreamingImageVolume:display-set', {
+      imageIds: ['wadors:one', 'wadors:two'],
+    });
+
+    expect(core.cache.removeVolumeLoadObject).not.toHaveBeenCalled();
+    expect(core.volumeLoader.createAndCacheVolume).not.toHaveBeenCalled();
   });
 });
 

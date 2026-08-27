@@ -51,7 +51,7 @@ python -m pytest -q servers/uncertainty-service/tests evaluation/ct-spleen/tests
 The install command is intentionally repeated here so an existing checkout
 that was updated with `git pull` receives newly added test dependencies.
 
-**Pass:** all tests pass. The maintained Python baseline is 134 tests; a
+**Pass:** all tests pass. The maintained Python baseline is 135 tests; a
 higher count is acceptable.
 
 If dependency installation mentions `cp314` or `Python314`, the existing
@@ -71,7 +71,7 @@ yarn workspace @thesis/mode-uncertainty-review typecheck
 ```
 
 **Pass:** both Jest suites and both type checks exit with code 0. The maintained
-baselines are 119 extension tests and 91 mode tests; higher counts are
+baselines are 119 extension tests and 93 mode tests; higher counts are
 acceptable. Save terminal output in the evidence directory.
 
 Use this suite-by-suite inventory rather than combining historical counts from
@@ -79,10 +79,10 @@ the thesis PDF with current output:
 
 | Suite | Maintained baseline |
 |---|---:|
-| Python service and evaluation | 134 |
+| Python service and evaluation | 135 |
 | OHIF uncertainty extension | 119 |
-| OHIF uncertainty-review mode | 91 |
-| **Current total** | **344** |
+| OHIF uncertainty-review mode | 93 |
+| **Current total** | **347** |
 
 The total is a repository regression-test count, not a count of participants,
 cases, independent experiments, or thesis claims.

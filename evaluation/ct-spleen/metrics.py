@@ -10,6 +10,14 @@ import numpy as np
 from scipy.ndimage import binary_erosion, distance_transform_edt
 
 
+def _trapezoid(y: np.ndarray, x: np.ndarray | None = None, *, dx: float = 1.0) -> float:
+    """Integrate with the API exposed by the installed NumPy generation."""
+    integrator = getattr(np, "trapezoid", None) or getattr(np, "trapz", None)
+    if integrator is None:  # pragma: no cover - supported NumPy versions expose one of these
+        raise RuntimeError("NumPy provides neither trapezoid nor trapz")
+    return float(integrator(y, x=x, dx=dx))
+
+
 def _as_bool(values: np.ndarray) -> np.ndarray:
     return np.asarray(values, dtype=bool)
 
@@ -215,7 +223,8 @@ def uncertainty_metrics(
         sorted_errors.size + 1,
     )
     coverage = np.arange(1, sorted_errors.size + 1) / sorted_errors.size
-    risk_coverage_auc = float(np.trapezoid(cumulative_risk, coverage))
+    # np.trapezoid is new in NumPy 2.0; np.trapz was removed in newer NumPy.
+    risk_coverage_auc = _trapezoid(cumulative_risk, coverage)
 
     return {
         "error_auroc": float(_roc_auc(selected_entropy, selected_errors)),

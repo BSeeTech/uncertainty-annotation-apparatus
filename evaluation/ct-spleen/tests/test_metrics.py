@@ -2,6 +2,8 @@ import math
 import sys
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
 import numpy as np
 
@@ -9,6 +11,7 @@ import numpy as np
 MODULE_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(MODULE_ROOT))
 
+import metrics as metrics_module  # noqa: E402
 from metrics import (  # noqa: E402
     aggregate_case_metrics,
     calibration_metrics,
@@ -19,6 +22,19 @@ from metrics import (  # noqa: E402
 
 
 class EvaluationMetricsTest(unittest.TestCase):
+    def test_trapezoid_falls_back_for_numpy_1_x(self):
+        legacy_numpy = SimpleNamespace(
+            trapezoid=None,
+            trapz=lambda y, x=None, dx=1.0: 0.25,
+        )
+        with patch.object(metrics_module, "np", legacy_numpy):
+            result = metrics_module._trapezoid(
+                np.array([0.0, 1.0]),
+                np.array([0.0, 1.0]),
+            )
+
+        self.assertEqual(result, 0.25)
+
     def test_perfect_segmentation_metrics(self):
         mask = np.zeros((5, 5, 5), dtype=bool)
         mask[1:4, 1:4, 1:4] = True

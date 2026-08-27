@@ -263,7 +263,8 @@ def main():
         current_error_sum += item['error']
         cumulative_risk.append(current_error_sum / (i + 1))
         
-    aurc = np.trapezoid(cumulative_risk, dx=1/len(selective_prediction_data))
+    trapezoid = getattr(np, 'trapezoid', None) or getattr(np, 'trapz')
+    aurc = trapezoid(cumulative_risk, dx=1/len(selective_prediction_data))
     
     # Oracle ranking
     oracle_data = sorted(selective_prediction_data, key=lambda x: x['error'], reverse=True)
@@ -272,7 +273,7 @@ def main():
     for i, item in enumerate(oracle_data):
         current_error_sum += item['error']
         oracle_risk.append(current_error_sum / (i + 1))
-    oracle_aurc = np.trapezoid(oracle_risk, dx=1/len(oracle_data))
+    oracle_aurc = trapezoid(oracle_risk, dx=1/len(oracle_data))
     
     # Random ranking baseline
     random_aurc = np.mean([item['error'] for item in selective_prediction_data])

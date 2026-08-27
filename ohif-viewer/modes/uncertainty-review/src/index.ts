@@ -270,16 +270,12 @@ export function uniqueImageIdsBySopInstance(imageIds: string[]): string[] {
   return unique;
 }
 
-async function ensureReferenceVolumeCached(
+export async function ensureReferenceVolumeCached(
   referenceVolumeId: string,
   displaySet: AnyServices
 ): Promise<void> {
   const cache: AnyServices = (cornerstone as AnyServices).cache;
   const volumeLoader: AnyServices = (cornerstone as AnyServices).volumeLoader;
-
-  if (cache?.getVolume?.(referenceVolumeId)) {
-    return;
-  }
 
   if (typeof volumeLoader?.createAndCacheVolume !== 'function') {
     return;
@@ -288,6 +284,23 @@ async function ensureReferenceVolumeCached(
   const imageIds = imageIdsFromDisplaySet(displaySet);
   if (!imageIds.length) {
     return;
+  }
+
+  const cachedVolume = cache?.getVolume?.(referenceVolumeId);
+  if (cachedVolume) {
+    const cachedSliceCount =
+      cachedVolume?.dimensions?.[2] ??
+      (Array.isArray(cachedVolume?.imageIds) ? cachedVolume.imageIds.length : undefined);
+
+    if (cachedSliceCount === undefined || cachedSliceCount === imageIds.length) {
+      return;
+    }
+
+    // A display set can be cached before its image IDs have been normalised.
+    // Reusing that volume makes a 38-slice NIfTI mask appear incompatible with
+    // a 76/114-slice reference volume. Evict only a demonstrably mismatched
+    // cache entry, then rebuild it from the SOP-deduplicated image list.
+    cache?.removeVolumeLoadObject?.(referenceVolumeId);
   }
 
   const volume = await Promise.resolve(
